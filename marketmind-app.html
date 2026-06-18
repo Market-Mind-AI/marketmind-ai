@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MarketMind AI — Analyze a Product</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400..600&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a0c0b;--bg-1:#0e110f;--ink:#ecebe3;--ink-soft:#b9bbb0;--muted:#7f837a;--faint:#565a52;
+    --line:rgba(236,235,227,.10);--line-2:rgba(236,235,227,.06);
+    --gold:#ecbc4e;--gold-deep:#c99a35;--mint:#5fd0ad;--mint-deep:#39a586;--coral:#e96a4c;--blue:#7fb3e8;
+    --r:18px;--ease:cubic-bezier(.2,.7,.2,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-font-smoothing:antialiased;scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font-family:"Hanken Grotesk",sans-serif;line-height:1.6;
+    min-height:100vh;position:relative;overflow-x:hidden}
+  .atmo{position:fixed;inset:-20%;z-index:0;pointer-events:none;
+    background:radial-gradient(38% 34% at 14% 6%,rgba(236,188,78,.13),transparent 60%),
+      radial-gradient(36% 38% at 86% 10%,rgba(95,208,173,.11),transparent 62%),
+      radial-gradient(50% 40% at 50% 108%,rgba(127,179,232,.06),transparent 60%)}
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.045;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+  ::selection{background:rgba(236,188,78,.28);color:#fff}
+
+  /* native View Transitions — the app-like morph (the Astro target) */
+  @media (prefers-reduced-motion: no-preference){
+    ::view-transition-old(root),::view-transition-new(root){animation-duration:.42s;animation-timing-function:cubic-bezier(.2,.7,.2,1)}
+    ::view-transition-group(product-thumb),::view-transition-group(product-title){
+      animation-duration:.6s;animation-timing-function:cubic-bezier(.2,.7,.2,1)}
+  }
+
+  /* topbar */
+  .top{position:sticky;top:0;z-index:40;display:flex;align-items:center;justify-content:space-between;
+    padding:15px clamp(18px,4vw,42px);backdrop-filter:blur(14px);
+    background:linear-gradient(180deg,rgba(10,12,11,.85),rgba(10,12,11,.4));border-bottom:1px solid var(--line-2)}
+  .brand{display:flex;align-items:center;gap:11px;font-family:"JetBrains Mono",monospace;font-size:12.5px;
+    letter-spacing:.16em;text-transform:uppercase}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 4px rgba(236,188,78,.14);
+    animation:pulse 2.6s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(236,188,78,.14)}50%{box-shadow:0 0 0 8px rgba(236,188,78,.04)}}
+  .tabs{display:flex;gap:4px}
+  .tabs span{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);padding:7px 13px;border-radius:999px}
+  .tabs span.on{color:var(--ink);background:rgba(236,235,227,.06)}
+  .proto{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--gold);border:1px solid rgba(236,188,78,.3);border-radius:999px;padding:4px 10px}
+  @media(max-width:720px){.tabs{display:none}}
+
+  main{position:relative;z-index:2;max-width:920px;margin:0 auto;padding:clamp(28px,5vw,60px) clamp(18px,4vw,42px) 120px}
+  .screen{display:none;animation:fade .6s var(--ease)}
+  .screen.active{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+
+  .eyebrow{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--gold);display:flex;align-items:center;gap:11px;margin-bottom:16px}
+  .eyebrow::before{content:"";width:24px;height:1px;background:var(--gold);opacity:.7}
+  h1{font-family:"Fraunces",serif;font-weight:430;font-size:clamp(32px,5.5vw,54px);line-height:1.02;
+    letter-spacing:-.02em;margin-bottom:12px}
+  h1 em{font-style:italic;color:var(--gold)}
+  .sub{color:var(--ink-soft);font-weight:330;max-width:54ch;font-size:17px}
+
+  /* upload card */
+  .card{border:1px solid var(--line);border-radius:var(--r);
+    background:linear-gradient(180deg,rgba(255,255,255,.022),rgba(255,255,255,0))}
+  .uploadgrid{display:grid;grid-template-columns:1.05fr 1fr;gap:16px;margin-top:30px}
+  @media(max-width:760px){.uploadgrid{grid-template-columns:1fr}}
+
+  .drop{padding:22px;display:flex;flex-direction:column}
+  .drop .lab,.descbox .lab{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:14px;display:flex;justify-content:space-between}
+  .dropzone{flex:1;border:1.5px dashed rgba(236,235,227,.18);border-radius:14px;padding:18px;
+    display:flex;flex-direction:column;gap:14px;transition:border-color .3s,background .3s;cursor:pointer;min-height:230px}
+  .dropzone:hover{border-color:rgba(236,188,78,.5);background:rgba(236,188,78,.03)}
+  .thumbs{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+  .thumb{aspect-ratio:1;border-radius:10px;position:relative;overflow:hidden;border:1px solid var(--line);
+    display:flex;align-items:flex-end;animation:pop .4s var(--ease)}
+  @keyframes pop{from{opacity:0;transform:scale(.86)}to{opacity:1;transform:none}}
+  .thumb .cap{font-family:"JetBrains Mono",monospace;font-size:9px;color:rgba(255,255,255,.82);
+    padding:5px 6px;background:linear-gradient(0deg,rgba(0,0,0,.55),transparent);width:100%}
+  .t1{background:linear-gradient(135deg,#2f4636,#7da06d)}
+  .t2{background:linear-gradient(135deg,#3a3326,#b89a5e)}
+  .t3{background:linear-gradient(135deg,#26343a,#5e93b8)}
+  .t4{background:linear-gradient(135deg,#3a2630,#b85e86)}
+  .dzcta{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+    color:var(--muted);text-align:center;padding:18px 0;margin-top:auto}
+  .dzcta .ic{width:42px;height:42px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center;
+    font-size:20px;color:var(--gold);background:rgba(236,188,78,.05)}
+  .dzcta b{color:var(--ink-soft);font-weight:600;font-size:14px}
+  .dzcta small{font-size:12px}
+
+  .descbox{padding:22px;display:flex;flex-direction:column}
+  textarea{flex:1;background:rgba(0,0,0,.18);border:1px solid var(--line);border-radius:14px;color:var(--ink);
+    font-family:"Hanken Grotesk",sans-serif;font-size:15px;line-height:1.6;padding:16px;resize:none;min-height:230px;
+    transition:border-color .3s}
+  textarea:focus{outline:none;border-color:rgba(95,208,173,.5)}
+  textarea::placeholder{color:var(--faint)}
+
+  .runbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:18px;flex-wrap:wrap}
+  .hint{font-size:13px;color:var(--muted);font-family:"JetBrains Mono",monospace}
+  .hint b{color:var(--mint)}
+  .btn{font-family:"Hanken Grotesk",sans-serif;font-weight:600;font-size:15px;border:none;cursor:pointer;
+    border-radius:12px;padding:14px 26px;color:#10130f;background:linear-gradient(100deg,var(--gold),var(--mint));
+    display:inline-flex;align-items:center;gap:10px;transition:transform .2s,box-shadow .3s;
+    box-shadow:0 8px 24px -10px rgba(236,188,78,.6)}
+  .btn:hover{transform:translateY(-2px);box-shadow:0 12px 30px -10px rgba(95,208,173,.6)}
+  .btn:active{transform:translateY(0)}
+  .btn.ghost{background:transparent;color:var(--ink-soft);border:1px solid var(--line);box-shadow:none}
+  .btn.ghost:hover{border-color:var(--ink-soft);color:var(--ink)}
+  .btn .ar{font-family:"Fraunces",serif;font-style:italic}
+
+  /* analyzing */
+  .anhead{display:flex;align-items:center;gap:16px;margin-bottom:6px}
+  .anhead .pt{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,#2f4636,#7da06d);flex:none}
+  .anhead h2{font-family:"Fraunces",serif;font-weight:450;font-size:26px}
+  .anhead .meta{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted)}
+  .barwrap{height:3px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;margin:26px 0 30px}
+  .barwrap .b{height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--mint));transition:width .7s var(--ease)}
+  .steps{display:flex;flex-direction:column;gap:2px}
+  .st{display:grid;grid-template-columns:30px 1fr auto;gap:14px;align-items:center;padding:15px 6px;
+    border-bottom:1px solid var(--line-2);opacity:.32;transition:opacity .5s}
+  .st.run{opacity:1}.st.done{opacity:1}
+  .st .dotc{width:22px;height:22px;border-radius:50%;border:1.5px solid var(--faint);display:grid;place-items:center;
+    font-size:12px;transition:.4s;color:transparent}
+  .st.run .dotc{border-color:var(--gold);animation:spin 1s linear infinite;border-right-color:transparent}
+  .st.done .dotc{border-color:var(--mint);background:var(--mint);color:#10130f;animation:none}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .st .sl{font-size:15px;color:var(--ink-soft);font-weight:500}
+  .st.done .sl{color:var(--ink)}
+  .st .res{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--mint);opacity:0;transform:translateX(8px);
+    transition:.5s}
+  .st.done .res{opacity:1;transform:none}
+
+  /* report */
+  .rephead{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:8px}
+  .rephead .l .chip{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--mint);border:1px solid rgba(95,208,173,.35);border-radius:999px;padding:4px 11px;display:inline-block;margin-bottom:14px}
+  .rephead h2{font-family:"Fraunces",serif;font-weight:450;font-size:clamp(26px,4vw,40px);line-height:1.05;letter-spacing:-.015em}
+  .rephead .when{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted);margin-top:8px}
+  .rthumb{width:66px;height:66px;border-radius:14px;background:linear-gradient(135deg,#2f4636,#7da06d);flex:none;margin-top:3px;border:1px solid var(--line)}
+
+  .scorecard{display:grid;grid-template-columns:auto 1fr;gap:30px;align-items:center;padding:28px;margin-top:24px;
+    border:1px solid var(--line);border-radius:var(--r);
+    background:radial-gradient(110% 130% at 0 0,rgba(95,208,173,.10),transparent 55%)}
+  @media(max-width:620px){.scorecard{grid-template-columns:1fr;text-align:center;justify-items:center}}
+  .gauge{position:relative;width:148px;height:148px}
+  .gauge svg{transform:rotate(-90deg)}
+  .gauge .val{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .gauge .num{font-family:"Fraunces",serif;font-weight:500;font-size:44px;line-height:1;color:var(--ink)}
+  .gauge .den{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);margin-top:3px}
+  .verdict .vt{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--mint);margin-bottom:8px}
+  .verdict h3{font-family:"Fraunces",serif;font-weight:450;font-size:26px;margin-bottom:8px}
+  .verdict p{color:var(--ink-soft);font-weight:330;max-width:46ch;font-size:15px}
+
+  .sec{margin-top:32px}
+  .sectitle{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:16px;display:flex;align-items:center;gap:10px}
+  .sectitle::after{content:"";flex:1;height:1px;background:var(--line-2)}
+
+  /* factor stacked bar */
+  .stack{height:30px;border-radius:8px;overflow:hidden;display:flex;border:1px solid var(--line)}
+  .seg{height:100%;width:0;transition:width 1.1s var(--ease)}
+  .s1{background:linear-gradient(180deg,#f1c861,var(--gold-deep))}
+  .s2{background:linear-gradient(180deg,#6fd9ba,var(--mint-deep))}
+  .s3{background:linear-gradient(180deg,#86bdee,#5a86b3)}
+  .s4{background:linear-gradient(180deg,#e89a86,#c2654c)}
+  .s5{background:linear-gradient(180deg,#c9b8e0,#9c84c2)}
+  .legend{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:16px}
+  @media(max-width:680px){.legend{grid-template-columns:repeat(2,1fr)}}
+  .lg{display:flex;flex-direction:column;gap:3px}
+  .lg .k{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft)}
+  .lg .sw{width:10px;height:10px;border-radius:3px}
+  .lg .v{font-family:"JetBrains Mono",monospace;font-size:18px;color:var(--ink);margin-left:17px}
+  .lg .v small{font-size:11px;color:var(--muted)}
+
+  /* markets */
+  .mkts{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(max-width:680px){.mkts{grid-template-columns:1fr}}
+  .mkt{border:1px solid var(--line);border-radius:14px;padding:16px 18px;display:flex;flex-direction:column;gap:9px;
+    background:rgba(255,255,255,.015);transition:border-color .3s,transform .3s}
+  .mkt:hover{border-color:rgba(236,235,227,.22);transform:translateY(-3px)}
+  .mkt .mh{display:flex;align-items:center;justify-content:space-between}
+  .mkt .fl{display:flex;align-items:center;gap:10px;font-weight:600;font-size:16px}
+  .mkt .fl .fg{font-size:22px}
+  .mkt .sc{font-family:"JetBrains Mono",monospace;font-weight:600;font-size:14px;color:var(--gold)}
+  .mkt .mtrack{height:6px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden}
+  .mkt .mfill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--gold-deep),var(--gold));transition:width 1s var(--ease)}
+  .mkt p{font-size:13px;color:var(--muted)}
+
+  /* two-up insight cards */
+  .twoup{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:680px){.twoup{grid-template-columns:1fr}}
+  .ins{border:1px solid var(--line);border-radius:14px;padding:18px 20px;background:rgba(255,255,255,.015)}
+  .ins .il{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .ins .big{font-family:"Fraunces",serif;font-weight:480;font-size:28px;color:var(--ink);letter-spacing:-.01em}
+  .ins .big span{font-size:16px;color:var(--mint);font-family:"JetBrains Mono",monospace}
+  .ins p{font-size:13.5px;color:var(--ink-soft);margin-top:8px;font-weight:330}
+
+  .recs{display:grid;gap:10px}
+  .rec{display:grid;grid-template-columns:26px 1fr;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;
+    background:rgba(255,255,255,.015)}
+  .rec .n{font-family:"Fraunces",serif;font-style:italic;color:var(--gold);font-size:17px}
+  .rec p{font-size:14.5px;color:var(--ink-soft)}
+  .rec p b{color:var(--ink);font-weight:600}
+
+  .cites{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .cite{display:grid;grid-template-columns:140px 1fr auto;gap:14px;padding:13px 18px;border-top:1px solid var(--line-2);
+    font-size:13px;align-items:center}
+  .cite:first-child{border-top:none}
+  .cite .src{font-weight:600;color:var(--ink)}
+  .cite .dv{color:var(--muted)}
+  .cite .dt{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--faint)}
+  @media(max-width:600px){.cite{grid-template-columns:1fr auto}.cite .dt{display:none}}
+
+  /* action bar */
+  .actions{position:sticky;bottom:0;margin-top:40px;padding:16px;border:1px solid var(--line);border-radius:16px;
+    background:linear-gradient(180deg,rgba(18,21,18,.7),rgba(12,14,12,.92));backdrop-filter:blur(14px);
+    display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+  .actions .lft{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted)}
+  .actions .lft b{color:var(--ink)}
+  .actions .grp{display:flex;gap:10px;flex-wrap:wrap}
+
+  .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);z-index:60;
+    background:#15191a;border:1px solid rgba(95,208,173,.4);color:var(--ink);padding:13px 20px;border-radius:12px;
+    font-size:14px;display:flex;align-items:center;gap:10px;opacity:0;pointer-events:none;transition:.4s var(--ease);
+    box-shadow:0 16px 40px -12px rgba(0,0,0,.6)}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .toast .ck{color:var(--mint);font-weight:700}
+  .toast code{font-family:"JetBrains Mono",monospace;font-size:12.5px;color:var(--gold)}
+
+  /* batch / CSV */
+  .batchup{padding:24px;margin-top:28px}
+  .filerow{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  .ficon{width:46px;height:46px;border-radius:12px;border:1px solid var(--line);display:grid;place-items:center;
+    font-size:20px;color:var(--gold);background:rgba(236,188,78,.05);flex:none}
+  .finfo{flex:1;min-width:160px}
+  .finfo b{display:block;font-size:15px}
+  .finfo small{color:var(--muted);font-family:"JetBrains Mono",monospace;font-size:12px}
+  .bprog{height:4px;border-radius:999px;background:rgba(255,255,255,.06);overflow:hidden;margin:18px 0 10px}
+  .bprogbar{height:100%;width:0;background:linear-gradient(90deg,var(--gold),var(--mint));transition:width .25s var(--ease)}
+  .bprogtxt{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted)}
+  .restool{display:flex;justify-content:space-between;align-items:center;gap:14px;margin:30px 0 14px;flex-wrap:wrap}
+  .rescount{font-size:14px;color:var(--ink-soft)}.rescount b{color:var(--ink);font-family:"JetBrains Mono",monospace}
+  .sortby{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+    display:flex;gap:6px;align-items:center}
+  .sortb{cursor:pointer;padding:5px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);transition:.25s}
+  .sortb.on,.sortb:hover{color:var(--ink);border-color:rgba(236,188,78,.4);background:rgba(236,188,78,.05)}
+  .btable{border:1px solid var(--line);border-radius:14px;overflow:hidden}
+  .bhead,.brow{display:grid;grid-template-columns:40px 1.7fr 1.05fr 116px 70px 1fr 86px;gap:12px;align-items:center;padding:13px 18px}
+  .bhead{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+    background:rgba(255,255,255,.02);border-bottom:1px solid var(--line-2)}
+  .brow{border-top:1px solid var(--line-2);cursor:pointer;transition:background .2s;animation:rowin .5s var(--ease) both}
+  .brow:hover{background:rgba(236,188,78,.045)}
+  @keyframes rowin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .c-rank{font-family:"Fraunces",serif;font-style:italic;color:var(--faint);font-size:16px}
+  .c-prod{display:flex;align-items:center;gap:11px;min-width:0}
+  .bth{width:30px;height:30px;border-radius:8px;flex:none;border:1px solid var(--line)}
+  .bnm{font-weight:600;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .c-cat{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .c-mos{display:flex;align-items:center;gap:9px}
+  .c-mos .mbar{flex:1;height:6px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;min-width:30px}
+  .c-mos .mbar span{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,var(--gold-deep),var(--mint))}
+  .c-mos b{font-family:"JetBrains Mono",monospace;font-size:13px}
+  .c-tr{font-family:"JetBrains Mono",monospace;font-size:13px;font-weight:600}
+  .c-mk{font-size:13px;color:var(--ink-soft);white-space:nowrap}
+  .c-pr{font-family:"JetBrains Mono",monospace;font-size:13px;color:var(--muted);text-align:right}
+  .reshint{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--faint);margin-top:12px;text-align:center}
+  @media(max-width:760px){
+    .bhead,.brow{grid-template-columns:30px 1.7fr 92px 58px;gap:10px}
+    .c-cat,.c-mk,.c-pr{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="atmo"></div>
+<div class="grain"></div>
+
+<div class="top">
+  <div class="brand"><span class="dot"></span> MarketMind&nbsp;AI</div>
+  <div class="tabs"><span class="on" id="tabAnalyze">Analyze</span><span id="tabBatch">Batch · CSV</span><span>History</span></div>
+  <div class="proto">Prototype · sample data</div>
+</div>
+
+<main>
+  <!-- ================= SCREEN 1 — UPLOAD ================= -->
+  <section class="screen active" id="screen-upload">
+    <div class="eyebrow">New analysis</div>
+    <h1>Analyze a <em>product</em></h1>
+    <p class="sub">Drop a few product photos and describe it in your own words. MarketMind reviews it against global demand, growth and marketplace signals — and writes you an explainable opportunity report.</p>
+
+    <div class="card uploadgrid">
+      <div class="drop">
+        <div class="lab"><span>Product images</span><span id="imgcount">3 added</span></div>
+        <div class="dropzone" id="dropzone" title="Click to add a sample image">
+          <div class="thumbs" id="thumbs">
+            <div class="thumb t1" style="view-transition-name:product-thumb"><div class="cap">front.jpg</div></div>
+            <div class="thumb t2"><div class="cap">texture.jpg</div></div>
+            <div class="thumb t3"><div class="cap">in-use.jpg</div></div>
+          </div>
+          <div class="dzcta">
+            <div class="ic">+</div>
+            <b>Drag photos here, or click to add</b>
+            <small>JPG / PNG · up to 8 images · resized client-side</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="descbox">
+        <div class="lab"><span>Description</span><span>free text</span></div>
+        <textarea id="desc" spellcheck="false">Eco-friendly bamboo &amp; natural cork yoga mat. Non-slip even when wet, 4mm thick, biodegradable, lightweight with a carry strap. Aimed at home-practice and studio users who care about sustainable materials.</textarea>
+      </div>
+    </div>
+
+    <div class="runbar">
+      <div class="hint">Vision model infers <b>category &amp; attributes</b> — no forms to fill.</div>
+      <button class="btn" id="analyzeBtn">Analyze product <span class="ar">→</span></button>
+    </div>
+  </section>
+
+  <!-- ================= SCREEN 2 — ANALYZING ================= -->
+  <section class="screen" id="screen-analyzing">
+    <div class="eyebrow">Live analysis · streaming</div>
+    <div class="anhead">
+      <div class="pt" style="view-transition-name:product-thumb"></div>
+      <div>
+        <h2 style="view-transition-name:product-title">Bamboo &amp; Cork Yoga Mat</h2>
+        <div class="meta">analysis · a1f7c · streaming from /analyses/{id}/stream</div>
+      </div>
+    </div>
+    <div class="barwrap"><div class="b" id="anbar"></div></div>
+    <div class="steps" id="steps">
+      <div class="st" data-res="7 attributes"><div class="dotc">✓</div><div class="sl">Reading product images (vision)</div><div class="res"></div></div>
+      <div class="st" data-res="Sports › Yoga"><div class="dotc">✓</div><div class="sl">Classifying product &amp; attributes</div><div class="res"></div></div>
+      <div class="st" data-res="+24% / 12 mo"><div class="dotc">✓</div><div class="sl">Google Trends — demand trajectory</div><div class="res"></div></div>
+      <div class="st" data-res="5 markets"><div class="dotc">✓</div><div class="sl">World Bank + IMF — growth &amp; geography</div><div class="res"></div></div>
+      <div class="st" data-res="412 listings"><div class="dotc">✓</div><div class="sl">eBay marketplace — live demand signal</div><div class="res"></div></div>
+      <div class="st" data-res="78 / 100"><div class="dotc">✓</div><div class="sl">Scoring Market Opportunity (MOS)</div><div class="res"></div></div>
+      <div class="st" data-res="ready"><div class="dotc">✓</div><div class="sl">Writing explainable report (Sonnet)</div><div class="res"></div></div>
+    </div>
+  </section>
+
+  <!-- ================= SCREEN 3 — REPORT ================= -->
+  <section class="screen" id="screen-report">
+    <div class="rephead">
+      <div class="l" style="display:flex;gap:18px;align-items:flex-start">
+        <div class="rthumb" id="rThumb" style="view-transition-name:product-thumb"></div>
+        <div>
+          <span class="chip" id="rChip">Strong opportunity</span>
+          <h2 id="rName" style="view-transition-name:product-title">Bamboo &amp; Cork Yoga Mat</h2>
+          <div class="when" id="rWhen">Sports &amp; Fitness › Yoga &amp; Pilates · analyzed Jun 18 2026 · 3 images · sustainable materials</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="scorecard">
+      <div class="gauge">
+        <svg width="148" height="148">
+          <circle cx="74" cy="74" r="63" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="11"/>
+          <circle id="ring" cx="74" cy="74" r="63" fill="none" stroke="url(#g)" stroke-width="11" stroke-linecap="round"
+            stroke-dasharray="396" stroke-dashoffset="396"/>
+          <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#ecbc4e"/><stop offset="1" stop-color="#5fd0ad"/></linearGradient></defs>
+        </svg>
+        <div class="val"><div class="num" id="mosNum">0</div><div class="den">MOS / 100</div></div>
+      </div>
+      <div class="verdict">
+        <div class="vt">Verdict</div>
+        <h3 id="rVerdictH">A strong, defensible launch opportunity.</h3>
+        <p id="rVerdictP">Rising sustained demand and a high-purchasing-power target geography outweigh moderate seasonality. Best entered with an eco-premium position in Northern Europe ahead of the New-Year fitness peak.</p>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sectitle">Why — Market Opportunity Score breakdown</div>
+      <div class="stack" id="stack">
+        <div class="seg s1" data-w="30"></div>
+        <div class="seg s2" data-w="25"></div>
+        <div class="seg s3" data-w="20"></div>
+        <div class="seg s4" data-w="15"></div>
+        <div class="seg s5" data-w="10"></div>
+      </div>
+      <div class="legend" id="rLegend">
+        <div class="lg"><div class="k"><span class="sw s1"></span>Trend</div><div class="v">84<small>/100 · w.30</small></div></div>
+        <div class="lg"><div class="k"><span class="sw s2"></span>Growth</div><div class="v">71<small>/100 · w.25</small></div></div>
+        <div class="lg"><div class="k"><span class="sw s3"></span>Geographic</div><div class="v">88<small>/100 · w.20</small></div></div>
+        <div class="lg"><div class="k"><span class="sw s4"></span>Seasonality</div><div class="v">61<small>/100 · w.15</small></div></div>
+        <div class="lg"><div class="k"><span class="sw s5"></span>Consumer</div><div class="v">66<small>/100 · w.10</small></div></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sectitle">Where — recommended markets</div>
+      <div class="mkts" id="rMkts">
+        <div class="mkt"><div class="mh"><div class="fl"><span class="fg">🇩🇪</span>Germany</div><div class="sc">91</div></div>
+          <div class="mtrack"><div class="mfill" data-w="91"></div></div>
+          <p>Largest EU eco-conscious fitness market; high GNI-PPP and strong "nachhaltige Yogamatte" search growth.</p></div>
+        <div class="mkt"><div class="mh"><div class="fl"><span class="fg">🇳🇱</span>Netherlands</div><div class="sc">87</div></div>
+          <div class="mtrack"><div class="mfill" data-w="87"></div></div>
+          <p>Top e-commerce penetration in Europe; premium sustainable-goods buyers, low price sensitivity.</p></div>
+        <div class="mkt"><div class="mh"><div class="fl"><span class="fg">🇺🇸</span>United States</div><div class="sc">82</div></div>
+          <div class="mtrack"><div class="mfill" data-w="82"></div></div>
+          <p>Largest absolute demand; competitive — differentiate on cork surface &amp; biodegradability.</p></div>
+        <div class="mkt"><div class="mh"><div class="fl"><span class="fg">🇨🇦</span>Canada</div><div class="sc">76</div></div>
+          <div class="mtrack"><div class="mfill" data-w="76"></div></div>
+          <p>Steady wellness growth; strong overlap with sustainability messaging, lighter competition.</p></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sectitle">How much &amp; when</div>
+      <div class="twoup">
+        <div class="ins"><div class="il">Suggested price band</div><div class="big" id="rPrice">€36 – €44 <span>eco-premium</span></div>
+          <p id="rPriceNote">Above the €22–28 commodity mat tier, below studio-brand €60+. Cork surface and biodegradability justify the premium in DE/NL.</p></div>
+        <div class="ins"><div class="il">Best launch window</div><div class="big" id="rWindow">Dec → Feb <span>peak +38%</span></div>
+          <p id="rWindowNote">New-Year fitness intent drives the seasonal peak. Build listings &amp; ads in November; sustain with a secondary "spring reset" push.</p></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sectitle">Recommendations</div>
+      <div class="recs" id="rRecs">
+        <div class="rec"><div class="n">1</div><p><b>Lead in Germany &amp; the Netherlands</b> with an eco-premium position — emphasize cork grip, 4mm comfort, and biodegradable end-of-life.</p></div>
+        <div class="rec"><div class="n">2</div><p><b>Price at €39 with a €44 anchor variant</b> (bundle a carry strap + alignment lines) to lift average order value without entering the commodity fight.</p></div>
+        <div class="rec"><div class="n">3</div><p><b>Time the launch for late November</b> so reviews and ad relevance mature before the December–January demand peak.</p></div>
+        <div class="rec"><div class="n">4</div><p><b>Treat seasonality as a risk flag, not a blocker</b> — plan a spring re-activation to smooth the post-January dip.</p></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <div class="sectitle">Sources — every claim is cited</div>
+      <div class="cites" id="rCites">
+        <div class="cite"><div class="src">Google Trends</div><div class="dv">"yoga mat" + eco terms · +24% interest / 12 mo · seasonal peak Jan</div><div class="dt">via DataForSEO</div></div>
+        <div class="cite"><div class="src">World Bank</div><div class="dv">GNI per capita (PPP) &amp; e-commerce penetration · DE/NL/US/CA</div><div class="dt">2025</div></div>
+        <div class="cite"><div class="src">IMF DataMapper</div><div class="dv">Real GDP growth forecast (NGDP_RPCH) · target markets</div><div class="dt">2026–30</div></div>
+        <div class="cite"><div class="src">eBay Browse API</div><div class="dv">412 active listings · median price €31 · sell-through proxy</div><div class="dt">live</div></div>
+        <div class="cite"><div class="src">Vision model</div><div class="dv">Haiku 4.5 · category, material (bamboo/cork), 7 attributes</div><div class="dt">conf 0.86</div></div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <div class="lft" id="rActions">MOS <b>78/100</b> · 5 sources · share link <b>marketmind.app/r/bamboo-mat-7f3</b></div>
+      <div class="grp">
+        <button class="btn ghost" id="shareBtn">Copy share link</button>
+        <button class="btn ghost" id="newBtn">New analysis</button>
+        <button class="btn" id="pdfBtn">Download PDF <span class="ar">↓</span></button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SCREEN 4 — BATCH / CSV ================= -->
+  <section class="screen" id="screen-batch">
+    <div class="eyebrow">Batch mode · CSV</div>
+    <h1>Score a whole <em>catalog</em></h1>
+    <p class="sub">Upload a CSV or Excel of products — MarketMind runs the same pipeline over every row and ranks them by opportunity. Click any product to open its full report.</p>
+
+    <div class="card batchup" id="batchUp">
+      <div class="filerow">
+        <div class="ficon">⌗</div>
+        <div class="finfo"><b>spring_catalog_2026.csv</b><small>8 products · columns: name, description, image_url</small></div>
+        <button class="btn" id="processBtn">Process catalog <span class="ar">→</span></button>
+      </div>
+      <div class="bprog"><div class="bprogbar" id="bprogbar"></div></div>
+      <div class="bprogtxt" id="bprogtxt">Ready · click to run the pipeline over all rows</div>
+    </div>
+
+    <div id="batchResults" hidden>
+      <div class="restool">
+        <div class="rescount"><b id="resCount">8</b> products · ranked by opportunity</div>
+        <div class="sortby">sort
+          <span class="sortb on" data-s="mos">MOS</span>
+          <span class="sortb" data-s="trend">Trend</span>
+          <span class="sortb" data-s="name">Name</span>
+        </div>
+      </div>
+      <div class="btable">
+        <div class="bhead"><div>#</div><div>Product</div><div>Category</div><div>MOS</div><div>Trend</div><div>Top market</div><div>Price</div></div>
+        <div id="btbody"></div>
+      </div>
+      <div class="reshint">↳ click any product to open its full report (with a view-transition morph)</div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"><span class="ck">✓</span><span id="toastmsg"></span></div>
+
+<script>
+  const $=s=>document.querySelector(s);
+  const screens={upload:$('#screen-upload'),analyzing:$('#screen-analyzing'),report:$('#screen-report'),batch:$('#screen-batch')};
+  function swap(name){Object.values(screens).forEach(s=>s.classList.remove('active'));screens[name].classList.add('active');window.scrollTo(0,0);}
+  function navigate(name,after){
+    if(document.startViewTransition){const vt=document.startViewTransition(()=>swap(name));if(after)vt.finished.then(after).catch(after);}
+    else{swap(name);if(after)after();}
+  }
+  function show(name){navigate(name);}
+
+  const WEIGHTS=[30,25,20,15,10], FNAMES=['Trend','Growth','Geographic','Seasonality','Consumer'], FCLASS=['s1','s2','s3','s4','s5'];
+  const THUMB={t1:'linear-gradient(135deg,#2f4636,#7da06d)',t2:'linear-gradient(135deg,#3a3326,#b89a5e)',t3:'linear-gradient(135deg,#26343a,#5e93b8)',t4:'linear-gradient(135deg,#3a2630,#b85e86)',t5:'linear-gradient(135deg,#2a3a36,#5ea98f)',t6:'linear-gradient(135deg,#34302a,#a8845e)'};
+
+  const PRODUCTS=[
+   {slug:'bamboo-mat-7f3',thumb:'t1',name:'Bamboo & Cork Yoga Mat',cat:'Sports & Fitness › Yoga',mos:78,trend:24,kw:'"cork yoga mat"',factors:[84,71,88,61,66],
+    markets:[{flag:'🇩🇪',code:'DE',name:'Germany',score:91,note:'Largest EU eco-conscious fitness market; high purchasing power and rising sustainable-mat search.'},{flag:'🇳🇱',code:'NL',name:'Netherlands',score:87,note:'Top EU e-commerce penetration; premium sustainable buyers with low price sensitivity.'},{flag:'🇺🇸',code:'US',name:'United States',score:82,note:'Largest absolute demand; differentiate on cork surface and biodegradability.'}],
+    price:'€36–44',medPrice:'€31',priceNote:'it sits above the commodity mat tier and below studio brands, and the cork surface justifies the premium',position:'an eco-premium position emphasizing cork grip and biodegradability',window:'Dec → Feb',peak:'+38%',listings:412,attrs:7,conf:'0.86',
+    verdict:{h:'A strong, defensible launch opportunity.',p:'Rising sustained demand and a high-purchasing-power target geography outweigh moderate seasonality. Enter with an eco-premium position in Northern Europe ahead of the New-Year fitness peak.'}},
+   {slug:'beeswax-wraps-2a9',thumb:'t5',name:'Reusable Beeswax Food Wraps',cat:'Home › Kitchen',mos:83,trend:41,kw:'"beeswax wraps"',factors:[89,74,82,55,80],
+    markets:[{flag:'🇳🇱',code:'NL',name:'Netherlands',score:90,note:'Zero-waste kitchen trend is strong; premium sustainable-goods buyers.'},{flag:'🇩🇪',code:'DE',name:'Germany',score:86,note:'Large eco-market with fast-rising demand for plastic-free kitchen goods.'},{flag:'🇬🇧',code:'GB',name:'United Kingdom',score:80,note:'Plastic-free movement is mainstream; the gift-set angle performs well.'}],
+    price:'€12–16',medPrice:'€11',priceNote:'three-pack gift sets lift order value above the single-wrap commodity price',position:'a plastic-free, zero-waste kitchen position with gift bundles',window:'Nov → Jan',peak:'+52%',listings:980,attrs:6,conf:'0.88',
+    verdict:{h:'A fast-rising, low-cost entry opportunity.',p:'Strong momentum and broad consumer interest at a low unit cost. Win with multi-packs and gifting bundles in Northern Europe, but watch thin margins.'}},
+   {slug:'grow-light-5c1',thumb:'t3',name:'LED Smart Plant Grow Light',cat:'Garden › Indoor',mos:71,trend:33,kw:'"led grow light"',factors:[80,77,70,48,69],
+    markets:[{flag:'🇺🇸',code:'US',name:'United States',score:84,note:'Huge indoor-gardening and houseplant base with smart-home overlap.'},{flag:'🇨🇦',code:'CA',name:'Canada',score:76,note:'Long winters drive indoor-grow demand; steady growth.'},{flag:'🇩🇪',code:'DE',name:'Germany',score:72,note:'Urban-gardening trend; energy-efficiency messaging resonates.'}],
+    price:'€25–34',medPrice:'€23',priceNote:'app control and timer features justify a step above bare LED strips',position:'a smart, energy-efficient angle for houseplant and herb growers',window:'Sep → Jan',peak:'+44%',listings:1340,attrs:8,conf:'0.81',
+    verdict:{h:'A solid, growing niche with smart-home upside.',p:'Healthy demand growth and a large US base. Differentiate on app control and efficiency; low seasonal dependence but crowded, so lead on features.'}},
+   {slug:'linen-shirt-9d4',thumb:'t6',name:'Linen Oversized Shirt',cat:'Apparel › Tops',mos:64,trend:12,kw:'"linen shirt"',factors:[62,58,73,77,55],
+    markets:[{flag:'🇫🇷',code:'FR',name:'France',score:79,note:'Strong linen heritage and premium natural-fabric demand.'},{flag:'🇮🇹',code:'IT',name:'Italy',score:74,note:'Quality-fabric buyers; a reliable summer staple.'},{flag:'🇺🇸',code:'US',name:'United States',score:68,note:'Coastal and resort-wear trend; sizing breadth matters.'}],
+    price:'€45–59',medPrice:'€48',priceNote:'the natural-fabric story supports mid-premium pricing',position:'a breathable, natural-fabric summer staple with a relaxed fit',window:'Mar → Jun',peak:'+31%',listings:2600,attrs:9,conf:'0.79',
+    verdict:{h:'A seasonal staple with steady, not explosive, demand.',p:'A highly seasonal and competitive apparel category. The geographic and seasonality signals carry it; lead in France and Italy for the spring-summer window.'}},
+   {slug:'insulated-bottle-3e7',thumb:'t3',name:'Stainless Insulated Bottle 750ml',cat:'Outdoors › Hydration',mos:69,trend:9,kw:'"insulated water bottle"',factors:[61,70,75,66,72],
+    markets:[{flag:'🇺🇸',code:'US',name:'United States',score:81,note:'Massive hydration market; colorway drops drive demand.'},{flag:'🇩🇪',code:'DE',name:'Germany',score:73,note:'Reusable-bottle norm; quality and BPA-free claims matter.'},{flag:'🇦🇺',code:'AU',name:'Australia',score:70,note:'Outdoor lifestyle supports year-round demand.'}],
+    price:'€18–24',medPrice:'€19',priceNote:'colorways and capacity options lift order value in a commoditized space',position:'a colorway-driven, everyday-carry hydration position',window:'Apr → Jul',peak:'+27%',listings:5100,attrs:7,conf:'0.83',
+    verdict:{h:'A stable, high-volume but commoditized opportunity.',p:'A flat trend and heavy competition, but broad consumer interest and steady geography. Compete on design and colorways rather than the demand curve.'}},
+   {slug:'pourover-set-8b2',thumb:'t2',name:'Ceramic Pour-Over Coffee Set',cat:'Home › Coffee',mos:74,trend:28,kw:'"pour over coffee set"',factors:[78,69,80,58,71],
+    markets:[{flag:'🇯🇵',code:'JP',name:'Japan',score:85,note:'Deep specialty-coffee culture; premium ceramics are valued.'},{flag:'🇺🇸',code:'US',name:'United States',score:78,note:'Home-barista boom with high gifting potential.'},{flag:'🇩🇪',code:'DE',name:'Germany',score:73,note:'Specialty-coffee growth and design-led buyers.'}],
+    price:'€30–40',medPrice:'€28',priceNote:'gift-boxed sets command a premium over loose drippers',position:'a design-led, gift-ready home-barista set',window:'Oct → Dec',peak:'+47%',listings:870,attrs:8,conf:'0.84',
+    verdict:{h:'A premium, giftable niche with rising interest.',p:'Strong trend and geography, and gifting-friendly. Win in Japan and the US with design and bundled sets ahead of the holiday window.'}},
+   {slug:'phone-mount-1a0',thumb:'t4',name:'Magnetic Phone Mount (Car)',cat:'Auto › Accessories',mos:52,trend:-6,kw:'"magsafe car mount"',factors:[44,55,60,40,58],
+    markets:[{flag:'🇺🇸',code:'US',name:'United States',score:66,note:'Large accessory market but saturated and price-driven.'},{flag:'🇩🇪',code:'DE',name:'Germany',score:58,note:'Steady but commoditized with thin differentiation.'},{flag:'🇬🇧',code:'GB',name:'United Kingdom',score:55,note:'Declining novelty; bundle to add value.'}],
+    price:'€9–14',medPrice:'€10',priceNote:'pricing is a race to the bottom, so bundle to escape the commodity tier',position:'a MagSafe-compatible bundle play rather than a standalone hero',window:'Nov → Dec',peak:'+12%',listings:7400,attrs:6,conf:'0.80',
+    verdict:{h:'A weak, declining and saturated opportunity.',p:'Softening demand, low seasonality and heavy price competition. Viable only as an add-on bundle, not a flagship launch. Consider skipping.'}},
+   {slug:'merino-socks-6f5',thumb:'t5',name:'Merino Wool Hiking Socks',cat:'Outdoors › Apparel',mos:67,trend:19,kw:'"merino hiking socks"',factors:[70,64,71,72,60],
+    markets:[{flag:'🇩🇪',code:'DE',name:'Germany',score:78,note:'Strong hiking culture and demand for quality wool.'},{flag:'🇨🇦',code:'CA',name:'Canada',score:74,note:'Cold-weather outdoors with performance-focused buyers.'},{flag:'🇺🇸',code:'US',name:'United States',score:70,note:'Large hiking base; brand and cushioning matter.'}],
+    price:'€16–22',medPrice:'€17',priceNote:'multi-pair packs and cushion tiers lift order value',position:'a performance merino position for serious hikers, sold in packs',window:'Sep → Dec',peak:'+49%',listings:3200,attrs:7,conf:'0.82',
+    verdict:{h:'A dependable seasonal outdoors opportunity.',p:'Good seasonality and geography with rising interest. Lead in the DACH region and Canada for the autumn-winter window with multi-pair value packs.'}}
+  ];
+
+  function tier(m){if(m>=75)return{label:'Strong opportunity',color:'#5fd0ad',border:'rgba(95,208,173,.35)',bg:'rgba(95,208,173,.06)'};if(m>=60)return{label:'Moderate opportunity',color:'#ecbc4e',border:'rgba(236,188,78,.35)',bg:'rgba(236,188,78,.06)'};return{label:'Watch · weak',color:'#e96a4c',border:'rgba(233,106,76,.35)',bg:'rgba(233,106,76,.08)'};}
+  function priceTag(m){return m>=75?'premium tier':m>=60?'mid-market':'value tier';}
+  function recsFor(p){const m=p.markets,rising=p.trend>=0;return[
+    `<b>Lead in ${m[0].name}${m[1]?' and '+m[1].name:''}</b> — ${p.position}.`,
+    `<b>Price around ${p.price}</b> — ${p.priceNote}.`,
+    `<b>Time the launch for the ${p.window} window</b> — ${rising?'demand is rising (+'+p.trend+'% / 12 mo); build listings and reviews ahead of the peak':'demand is softening ('+p.trend+'% / 12 mo); keep inventory lean and lead on differentiation'}.`
+  ];}
+  function citesFor(p){return[
+    ['Google Trends',`${p.kw} · ${p.trend>=0?'+':''}${p.trend}% interest / 12 mo`,'via DataForSEO'],
+    ['World Bank',`GNI per capita (PPP) &amp; e-commerce penetration · ${p.markets.map(m=>m.code).join('/')}`,'2025'],
+    ['IMF DataMapper','Real GDP growth forecast (NGDP_RPCH) · target markets','2026–30'],
+    ['eBay Browse API',`${p.listings} active listings · median ${p.medPrice} · sell-through proxy`,'live'],
+    ['Vision model',`Haiku 4.5 · category &amp; ${p.attrs} attributes`,'conf '+p.conf]
+  ];}
+
+  let current=PRODUCTS[0], origin='analyze';
+
+  function renderReport(p){
+    const ti=tier(p.mos), rising=p.trend>=0;
+    $('#rThumb').style.background=THUMB[p.thumb];
+    const rc=$('#rChip');rc.textContent=ti.label;rc.style.color=ti.color;rc.style.borderColor=ti.border;rc.style.background=ti.bg;
+    $('#rName').textContent=p.name;
+    $('#rWhen').textContent=`${p.cat} · analyzed Jun 18 2026 · ${p.attrs} attributes · MOS ${p.mos}/100`;
+    $('#rVerdictH').textContent=p.verdict.h;
+    $('#rVerdictP').textContent=p.verdict.p;
+    $('#rLegend').innerHTML=p.factors.map((sc,i)=>`<div class="lg"><div class="k"><span class="sw ${FCLASS[i]}"></span>${FNAMES[i]}</div><div class="v">${sc}<small>/100 · w.${WEIGHTS[i]}</small></div></div>`).join('');
+    $('#rMkts').innerHTML=p.markets.map(m=>`<div class="mkt"><div class="mh"><div class="fl"><span class="fg">${m.flag}</span>${m.name}</div><div class="sc">${m.score}</div></div><div class="mtrack"><div class="mfill" data-w="${m.score}"></div></div><p>${m.note}</p></div>`).join('');
+    $('#rPrice').innerHTML=`${p.price} <span>${priceTag(p.mos)}</span>`;
+    $('#rPriceNote').textContent=p.priceNote.charAt(0).toUpperCase()+p.priceNote.slice(1)+'.';
+    $('#rWindow').innerHTML=`${p.window} <span>peak ${p.peak}</span>`;
+    $('#rWindowNote').textContent=`${rising?'Demand builds into this window':'Plan a lean run for this window'} — prepare listings and reviews about six weeks ahead.`;
+    $('#rRecs').innerHTML=recsFor(p).map((t,i)=>`<div class="rec"><div class="n">${i+1}</div><p>${t}</p></div>`).join('');
+    $('#rCites').innerHTML=citesFor(p).map(c=>`<div class="cite"><div class="src">${c[0]}</div><div class="dv">${c[1]}</div><div class="dt">${c[2]}</div></div>`).join('');
+    $('#rActions').innerHTML=`MOS <b>${p.mos}/100</b> · 5 sources · share link <b>marketmind.app/r/${p.slug}</b>`;
+    $('#newBtn').textContent=origin==='batch'?'← Back to catalog':'New analysis';
+    const ring=$('#ring');ring.style.transition='none';ring.style.strokeDashoffset=396;$('#mosNum').textContent='0';
+    document.querySelectorAll('#stack .seg').forEach(s=>s.style.width='0%');
+  }
+
+  function animateReport(p){
+    const ring=$('#ring'),circ=396;
+    requestAnimationFrame(()=>{ring.style.transition='stroke-dashoffset 1.4s cubic-bezier(.2,.7,.2,1)';ring.style.strokeDashoffset=circ-(circ*p.mos/100);});
+    let n=0;const step=Math.max(1,Math.round(p.mos/39));const cnt=setInterval(()=>{n+=step;if(n>=p.mos){n=p.mos;clearInterval(cnt);}$('#mosNum').textContent=n;},22);
+    document.querySelectorAll('#stack .seg').forEach((seg,k)=>{seg.style.width=(WEIGHTS[k]*p.factors[k]/100)+'%';});
+    document.querySelectorAll('#rMkts .mfill').forEach(f=>f.style.width=f.dataset.w+'%');
+  }
+
+  function openReport(p,org){current=p;origin=org;setTab(org==='batch'?'batch':'analyze');renderReport(p);navigate('report',()=>animateReport(p));}
+
+  // ---- single-product flow ----
+  let imgN=3;const palette=['t4','t1','t2','t3'];
+  $('#dropzone').addEventListener('click',()=>{if(imgN>=8)return;const d=document.createElement('div');d.className='thumb '+palette[(imgN-3)%palette.length];d.innerHTML='<div class="cap">img_'+(imgN+1)+'.jpg</div>';$('#thumbs').appendChild(d);imgN++;$('#imgcount').textContent=imgN+' added';});
+
+  $('#analyzeBtn').addEventListener('click',()=>{
+    show('analyzing');
+    const steps=[...document.querySelectorAll('#steps .st')];steps.forEach(s=>{s.classList.remove('run','done');s.querySelector('.res').textContent='';});
+    $('#anbar').style.width='0%';let i=0;
+    const tick=()=>{
+      if(i>0){steps[i-1].classList.remove('run');steps[i-1].classList.add('done');steps[i-1].querySelector('.res').textContent=steps[i-1].dataset.res;}
+      $('#anbar').style.width=Math.round((i/steps.length)*100)+'%';
+      if(i<steps.length){steps[i].classList.add('run');i++;setTimeout(tick,700+Math.random()*420);}
+      else{$('#anbar').style.width='100%';setTimeout(()=>openReport(PRODUCTS[0],'analyze'),520);}
+    };
+    setTimeout(tick,360);
+  });
+
+  // ---- toast + report actions ----
+  let tt;function toast(html){$('#toastmsg').innerHTML=html;const t=$('#toast');t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2600);}
+  $('#shareBtn').addEventListener('click',()=>toast('Link copied · <code>marketmind.app/r/'+current.slug+'</code>'));
+  $('#pdfBtn').addEventListener('click',()=>toast('Generating PDF · <code>'+current.slug+'_MOS-report.pdf</code>'));
+  $('#newBtn').addEventListener('click',()=>{if(origin==='batch'){setTab('batch');show('batch');}else{setTab('analyze');show('upload');}});
+
+  // ---- tabs ----
+  function setTab(t){$('#tabAnalyze').classList.toggle('on',t==='analyze');$('#tabBatch').classList.toggle('on',t==='batch');}
+  $('#tabAnalyze').addEventListener('click',()=>{setTab('analyze');show('upload');});
+  $('#tabBatch').addEventListener('click',()=>{setTab('batch');show('batch');});
+
+  // ---- batch / CSV ----
+  let curSort='mos';
+  const sortFns={mos:(a,b)=>b.mos-a.mos,trend:(a,b)=>b.trend-a.trend,name:(a,b)=>a.name.localeCompare(b.name)};
+  function buildTable(){
+    const tb=$('#btbody');tb.innerHTML='';
+    [...PRODUCTS].sort(sortFns[curSort]).forEach((p,i)=>{
+      const tcol=p.trend>=0?'var(--mint)':'var(--coral)';
+      const tr=document.createElement('div');tr.className='brow';tr.style.animationDelay=(i*45)+'ms';
+      tr.innerHTML=`<div class="c-rank">${i+1}</div><div class="c-prod"><span class="bth" style="background:${THUMB[p.thumb]}"></span><span class="bnm">${p.name}</span></div><div class="c-cat">${p.cat}</div><div class="c-mos"><span class="mbar"><span style="width:${p.mos}%"></span></span><b>${p.mos}</b></div><div class="c-tr" style="color:${tcol}">${p.trend>=0?'+':''}${p.trend}%</div><div class="c-mk">${p.markets[0].flag} ${p.markets[0].name}</div><div class="c-pr">${p.price}</div>`;
+      tr.addEventListener('click',()=>{const th=tr.querySelector('.bth'),nm=tr.querySelector('.bnm');th.style.viewTransitionName='product-thumb';nm.style.viewTransitionName='product-title';openReport(p,'batch');setTimeout(()=>{th.style.viewTransitionName='';nm.style.viewTransitionName='';},800);});
+      tb.appendChild(tr);
+    });
+  }
+  document.querySelectorAll('.sortb').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('.sortb').forEach(x=>x.classList.remove('on'));b.classList.add('on');curSort=b.dataset.s;buildTable();}));
+  $('#processBtn').addEventListener('click',()=>{
+    const bar=$('#bprogbar'),txt=$('#bprogtxt');bar.style.width='0%';let n=0;const total=PRODUCTS.length;txt.textContent='Running pipeline over all rows…';
+    const iv=setInterval(()=>{n++;bar.style.width=Math.round(n/total*100)+'%';txt.textContent=`Scored ${n}/${total} products…`;if(n>=total){clearInterval(iv);txt.textContent=`Done · ${total} products scored & ranked`;buildTable();$('#batchResults').hidden=false;}},240);
+  });
+</script>
+</body>
+</html>

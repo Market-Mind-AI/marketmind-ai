@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MarketMind AI — Architecture &amp; Build Plan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..600&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#0a0c0b;
+    --bg-1:#0e110f;
+    --bg-2:#131713;
+    --panel:#15191600;
+    --ink:#ecebe3;
+    --ink-soft:#b9bbb0;
+    --muted:#7f837a;
+    --faint:#565a52;
+    --line:rgba(236,235,227,.10);
+    --line-2:rgba(236,235,227,.06);
+    --gold:#ecbc4e;     /* opportunity */
+    --gold-deep:#c99a35;
+    --mint:#5fd0ad;     /* signal */
+    --mint-deep:#39a586;
+    --coral:#e96a4c;    /* risk / cut */
+    --coral-soft:#f0a48f;
+    --blue:#7fb3e8;
+    --r:18px;
+    --maxw:1160px;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Hanken Grotesk",sans-serif;
+    font-weight:400;
+    line-height:1.6;
+    overflow-x:hidden;
+    position:relative;
+  }
+
+  /* ---- atmosphere: gradient mesh + grain ---- */
+  .atmosphere{position:fixed;inset:0;z-index:0;pointer-events:none}
+  .atmosphere::before{
+    content:"";position:absolute;inset:-20%;
+    background:
+      radial-gradient(40% 35% at 12% 8%, rgba(236,188,78,.16), transparent 60%),
+      radial-gradient(38% 40% at 88% 14%, rgba(95,208,173,.13), transparent 62%),
+      radial-gradient(45% 45% at 50% 100%, rgba(127,179,232,.08), transparent 60%);
+    filter:saturate(1.1);
+  }
+  .grain{position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
+
+  /* ---- scroll progress ---- */
+  .progress{position:fixed;top:0;left:0;height:2px;width:0;z-index:60;
+    background:linear-gradient(90deg,var(--gold),var(--mint));box-shadow:0 0 12px rgba(236,188,78,.5)}
+
+  /* ---- nav ---- */
+  nav{position:fixed;top:0;left:0;right:0;z-index:50;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:16px clamp(18px,4vw,40px);
+    backdrop-filter:blur(14px);
+    background:linear-gradient(180deg,rgba(10,12,11,.82),rgba(10,12,11,.35));
+    border-bottom:1px solid var(--line-2)}
+  .brand{display:flex;align-items:center;gap:11px;font-family:"JetBrains Mono",monospace;
+    font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink)}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);
+    box-shadow:0 0 0 4px rgba(236,188,78,.14);animation:pulse 2.6s var(--ease) infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 4px rgba(236,188,78,.14)}50%{box-shadow:0 0 0 8px rgba(236,188,78,.04)}}
+  .navlinks{display:flex;gap:6px}
+  .navlinks a{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.08em;
+    text-transform:uppercase;color:var(--muted);text-decoration:none;padding:7px 12px;border-radius:999px;
+    transition:color .25s,background .25s}
+  .navlinks a:hover,.navlinks a.active{color:var(--ink);background:rgba(236,235,227,.06)}
+  @media(max-width:880px){.navlinks{display:none}}
+
+  /* ---- layout ---- */
+  .wrap{position:relative;z-index:2;max-width:var(--maxw);margin:0 auto;padding:0 clamp(18px,4vw,40px)}
+  section{padding:clamp(64px,9vw,120px) 0;position:relative}
+  .eyebrow{font-family:"JetBrains Mono",monospace;font-size:11.5px;letter-spacing:.22em;
+    text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:12px;margin-bottom:22px}
+  .eyebrow::before{content:"";width:26px;height:1px;background:var(--gold);opacity:.7}
+  h2{font-family:"Fraunces",serif;font-weight:430;font-size:clamp(30px,4.6vw,52px);
+    line-height:1.04;letter-spacing:-.015em;margin-bottom:18px}
+  h2 em{font-style:italic;color:var(--gold);font-weight:430}
+  .lede{font-size:clamp(16px,1.7vw,19px);color:var(--ink-soft);max-width:62ch;font-weight:330}
+
+  /* ---- hero ---- */
+  .hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+    padding-top:120px;padding-bottom:60px}
+  .hero .kicker{font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.28em;
+    text-transform:uppercase;color:var(--mint);margin-bottom:26px;opacity:0;animation:rise .9s var(--ease) .1s forwards}
+  .hero h1{font-family:"Fraunces",serif;font-weight:400;font-size:clamp(46px,9vw,118px);
+    line-height:.92;letter-spacing:-.03em;margin-bottom:8px}
+  .hero h1 .l1{display:block;opacity:0;animation:rise 1s var(--ease) .22s forwards}
+  .hero h1 .l2{display:block;font-style:italic;color:transparent;
+    background:linear-gradient(100deg,var(--gold),var(--mint) 90%);-webkit-background-clip:text;background-clip:text;
+    opacity:0;animation:rise 1s var(--ease) .36s forwards}
+  .hero .sub{margin-top:30px;max-width:60ch;font-size:clamp(17px,2vw,21px);color:var(--ink-soft);
+    font-weight:330;opacity:0;animation:rise 1s var(--ease) .5s forwards}
+  .hero .meta{margin-top:34px;display:flex;flex-wrap:wrap;gap:10px 26px;
+    font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.06em;color:var(--muted);
+    opacity:0;animation:rise 1s var(--ease) .62s forwards}
+  .hero .meta b{color:var(--ink);font-weight:500}
+  @keyframes rise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:translateY(0)}}
+
+  .decisions{margin-top:54px;display:grid;grid-template-columns:repeat(4,1fr);gap:14px;
+    opacity:0;animation:rise 1s var(--ease) .78s forwards}
+  @media(max-width:820px){.decisions{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:480px){.decisions{grid-template-columns:1fr}}
+  .dchip{border:1px solid var(--line);border-radius:14px;padding:16px 16px 18px;
+    background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0));transition:border-color .3s,transform .3s}
+  .dchip:hover{border-color:rgba(236,188,78,.4);transform:translateY(-3px)}
+  .dchip .k{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+  .dchip .v{font-size:15px;font-weight:600;color:var(--ink);line-height:1.25}
+  .dchip .v span{color:var(--mint)}
+
+  /* ---- reveal ---- */
+  .reveal{opacity:0;transform:translateY(34px);transition:opacity .9s var(--ease),transform .9s var(--ease)}
+  .reveal.in{opacity:1;transform:none}
+
+  /* ---- big decision callout ---- */
+  .callout{border:1px solid var(--line);border-radius:var(--r);padding:clamp(26px,4vw,44px);
+    background:
+      radial-gradient(120% 140% at 0% 0%, rgba(236,188,78,.10), transparent 55%),
+      linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,0));
+    position:relative;overflow:hidden}
+  .callout::after{content:"01";position:absolute;right:-6px;top:-30px;font-family:"Fraunces",serif;
+    font-size:200px;font-style:italic;color:rgba(236,188,78,.06);font-weight:500;pointer-events:none}
+  .callout h3{font-family:"Fraunces",serif;font-weight:430;font-size:clamp(22px,3vw,32px);
+    line-height:1.15;margin-bottom:16px;max-width:24ch}
+  .callout h3 b{color:var(--gold);font-weight:500;font-style:italic}
+  .callout p{color:var(--ink-soft);max-width:64ch;font-weight:330;margin-bottom:14px}
+  .twonodes{margin-top:24px;display:flex;gap:14px;flex-wrap:wrap}
+  .node{flex:1;min-width:240px;border:1px solid var(--line);border-radius:14px;padding:18px 20px;
+    background:rgba(95,208,173,.04)}
+  .node .tag{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--mint);margin-bottom:8px}
+  .node .nm{font-weight:600;margin-bottom:4px}
+  .node .ds{font-size:14px;color:var(--muted)}
+
+  /* ---- pipeline ---- */
+  .pipe{display:flex;flex-direction:column;gap:0;margin-top:14px}
+  .step{display:grid;grid-template-columns:64px 1fr;gap:22px;padding:20px 0;position:relative}
+  .step:not(:last-child)::before{content:"";position:absolute;left:31px;top:54px;bottom:-6px;width:1px;
+    background:linear-gradient(180deg,var(--line),transparent)}
+  .step .num{width:54px;height:54px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+    font-family:"Fraunces",serif;font-style:italic;font-size:22px;color:var(--gold);
+    border:1px solid var(--line);background:rgba(255,255,255,.02);position:relative;z-index:2;
+    transition:border-color .3s,color .3s,background .3s}
+  .step:hover .num{border-color:var(--gold);color:var(--bg);background:var(--gold)}
+  .step .body .t{font-weight:600;font-size:16.5px;display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+  .step .body .t .mono{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--mint);
+    border:1px solid rgba(95,208,173,.3);border-radius:6px;padding:2px 8px;letter-spacing:.04em}
+  .step .body p{font-size:14.5px;color:var(--muted);margin-top:5px;max-width:70ch}
+  .step .body .llm{color:var(--gold)}
+
+  /* ---- generic grids ---- */
+  .grid{display:grid;gap:14px;margin-top:14px}
+  .g2{grid-template-columns:repeat(2,1fr)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:820px){.g2,.g3{grid-template-columns:1fr}}
+
+  .card{border:1px solid var(--line);border-radius:var(--r);padding:22px 22px 24px;
+    background:linear-gradient(180deg,rgba(255,255,255,.022),rgba(255,255,255,0));
+    transition:border-color .3s,transform .3s}
+  .card:hover{border-color:rgba(236,235,227,.22);transform:translateY(-4px)}
+  .card .lab{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.12em;
+    text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .card h4{font-family:"Fraunces",serif;font-weight:480;font-size:20px;margin-bottom:10px;letter-spacing:-.01em}
+  .card .tech{color:var(--mint);font-weight:600;font-size:14.5px;margin-bottom:8px;font-family:"JetBrains Mono",monospace}
+  .card p{font-size:14px;color:var(--ink-soft);font-weight:330}
+
+  /* ---- data tiers ---- */
+  .tier{border:1px solid var(--line);border-radius:var(--r);padding:24px;margin-top:14px;position:relative;overflow:hidden}
+  .tier .th{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px;flex-wrap:wrap}
+  .tier .th .name{font-family:"Fraunces",serif;font-size:22px;font-weight:480}
+  .tier .th .badge{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.12em;
+    text-transform:uppercase;padding:5px 11px;border-radius:999px;border:1px solid var(--line)}
+  .b-free{color:var(--mint);border-color:rgba(95,208,173,.4);background:rgba(95,208,173,.06)}
+  .b-cheap{color:var(--gold);border-color:rgba(236,188,78,.4);background:rgba(236,188,78,.06)}
+  .b-opt{color:var(--muted)}
+  .srcs{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+  @media(max-width:680px){.srcs{grid-template-columns:1fr}}
+  .src{display:flex;gap:12px;padding:13px 14px;border:1px solid var(--line-2);border-radius:12px;
+    background:rgba(255,255,255,.015)}
+  .src .sn{font-weight:600;font-size:14.5px;color:var(--ink);white-space:nowrap}
+  .src .sd{font-size:13px;color:var(--muted)}
+  .src .pill{font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--mint);align-self:flex-start;
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;margin-top:2px}
+
+  /* ---- amazon verdict ---- */
+  .verdict{margin-top:16px;border:1px solid rgba(233,106,76,.3);border-radius:var(--r);overflow:hidden;
+    background:radial-gradient(120% 120% at 100% 0,rgba(233,106,76,.10),transparent 50%)}
+  .verdict .vh{padding:24px 26px 6px}
+  .verdict .vh .lab{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--coral);margin-bottom:8px}
+  .verdict .vh h3{font-family:"Fraunces",serif;font-weight:450;font-size:clamp(22px,3vw,30px)}
+  .verdict .vh p{color:var(--ink-soft);max-width:64ch;margin-top:8px;font-weight:330}
+  .vlist{padding:14px 26px 26px;display:grid;gap:9px}
+  .vrow{display:grid;grid-template-columns:84px 1fr;gap:16px;align-items:start;
+    padding:13px 0;border-top:1px solid var(--line-2)}
+  .vrow .stat{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;letter-spacing:.06em;
+    padding:4px 0;text-align:center;border-radius:7px}
+  .no{color:var(--coral);border:1px solid rgba(233,106,76,.35);background:rgba(233,106,76,.08)}
+  .yes{color:var(--mint);border:1px solid rgba(95,208,173,.35);background:rgba(95,208,173,.08)}
+  .vrow .vt b{color:var(--ink);font-weight:600}
+  .vrow .vt{font-size:14px;color:var(--muted)}
+
+  /* ---- MOS bars ---- */
+  .mos{margin-top:18px;display:grid;gap:14px}
+  .bar{display:grid;grid-template-columns:200px 1fr 54px;gap:18px;align-items:center}
+  @media(max-width:680px){.bar{grid-template-columns:130px 1fr 44px};.bar .desc{display:none}}
+  .bar .fl{font-weight:600;font-size:15px}
+  .bar .fl small{display:block;font-weight:400;font-size:12px;color:var(--muted);font-family:"JetBrains Mono",monospace;margin-top:2px}
+  .track{height:12px;border-radius:999px;background:rgba(255,255,255,.05);overflow:hidden;position:relative}
+  .fill{height:100%;width:0;border-radius:999px;background:linear-gradient(90deg,var(--gold-deep),var(--gold));
+    transition:width 1.3s var(--ease)}
+  .fill.mint{background:linear-gradient(90deg,var(--mint-deep),var(--mint))}
+  .bar .pct{font-family:"JetBrains Mono",monospace;font-weight:600;text-align:right;color:var(--ink)}
+  .mosnote{margin-top:22px;border-left:2px solid var(--mint);padding:4px 0 4px 20px;color:var(--ink-soft);
+    max-width:70ch;font-weight:330;font-size:15px}
+  .mosnote b{color:var(--mint)}
+
+  /* ---- scope two cols ---- */
+  .scope{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  @media(max-width:820px){.scope{grid-template-columns:1fr}}
+  .col{border:1px solid var(--line);border-radius:var(--r);padding:24px}
+  .col.keep{background:radial-gradient(120% 90% at 0 0,rgba(95,208,173,.08),transparent 55%)}
+  .col.cut{background:radial-gradient(120% 90% at 0 0,rgba(233,106,76,.08),transparent 55%)}
+  .col .ch{font-family:"JetBrains Mono",monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;
+    margin-bottom:16px;display:flex;align-items:center;gap:10px}
+  .col.keep .ch{color:var(--mint)}.col.cut .ch{color:var(--coral)}
+  .col ul{list-style:none;display:grid;gap:11px}
+  .col li{display:grid;grid-template-columns:20px 1fr;gap:11px;font-size:14.5px;color:var(--ink-soft)}
+  .col li .ic{font-weight:700;line-height:1.5}
+  .col.keep .ic{color:var(--mint)}.col.cut .ic{color:var(--coral)}
+  .col li b{color:var(--ink);font-weight:600}
+
+  /* ---- roadmap ---- */
+  .timeline{margin-top:18px;position:relative;padding-left:30px}
+  .timeline::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:1px;
+    background:linear-gradient(180deg,var(--gold),var(--mint),transparent)}
+  .ph{position:relative;padding:16px 0 18px 6px;border-bottom:1px solid var(--line-2)}
+  .ph::before{content:"";position:absolute;left:-27px;top:22px;width:13px;height:13px;border-radius:50%;
+    background:var(--bg);border:2px solid var(--gold)}
+  .ph:hover::before{background:var(--gold)}
+  .ph .pk{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .ph .pn{font-family:"Fraunces",serif;font-style:italic;font-size:19px;color:var(--ink)}
+  .ph .pw{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--gold);letter-spacing:.06em}
+  .ph p{font-size:14px;color:var(--muted);margin-top:5px;max-width:74ch}
+  .ph .obj{font-size:12.5px;color:var(--mint);font-family:"JetBrains Mono",monospace;margin-top:6px}
+
+  /* ---- risks ---- */
+  .risk{border:1px solid var(--line);border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:8px;
+    transition:border-color .3s,transform .3s}
+  .risk:hover{transform:translateY(-3px)}
+  .risk .sev{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.1em;font-weight:600;
+    align-self:flex-start;padding:3px 9px;border-radius:6px}
+  .p0{color:var(--coral);background:rgba(233,106,76,.1);border:1px solid rgba(233,106,76,.3)}
+  .p1{color:var(--gold);background:rgba(236,188,78,.1);border:1px solid rgba(236,188,78,.3)}
+  .p2{color:var(--blue);background:rgba(127,179,232,.1);border:1px solid rgba(127,179,232,.3)}
+  .risk h5{font-weight:600;font-size:15px}
+  .risk p{font-size:13.5px;color:var(--muted)}
+  .risk .mit{font-size:13.5px;color:var(--ink-soft)}
+  .risk .mit b{color:var(--mint);font-weight:600}
+
+  /* ---- footer ---- */
+  footer{border-top:1px solid var(--line);padding:50px 0 60px;margin-top:40px;position:relative;z-index:2}
+  .foot{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-end}
+  .foot .big{font-family:"Fraunces",serif;font-style:italic;font-size:clamp(26px,5vw,46px);font-weight:430;
+    line-height:1.05;max-width:14ch}
+  .foot .big span{color:var(--gold)}
+  .foot .auth{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--muted);text-align:right;line-height:1.9}
+  .foot .auth b{color:var(--ink)}
+
+  .sectnum{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--faint);letter-spacing:.1em}
+  ::selection{background:rgba(236,188,78,.28);color:#fff}
+</style>
+</head>
+<body>
+<div class="atmosphere"></div>
+<div class="grain"></div>
+<div class="progress" id="progress"></div>
+
+<nav>
+  <div class="brand"><span class="dot"></span> MarketMind&nbsp;AI</div>
+  <div class="navlinks">
+    <a href="#overview">Overview</a>
+    <a href="#flow">Flow</a>
+    <a href="#stack">Stack</a>
+    <a href="#data">Data</a>
+    <a href="#mos">MOS</a>
+    <a href="#infra">Infra</a>
+    <a href="#scope">Scope</a>
+    <a href="#roadmap">Roadmap</a>
+  </div>
+</nav>
+
+<!-- ===================== HERO ===================== -->
+<header class="hero">
+  <div class="wrap">
+    <div class="kicker">Trabajo Final de Máster · IA Generativa · EBIS</div>
+    <h1><span class="l1">MarketMind</span><span class="l2">AI</span></h1>
+    <p class="sub">A generative-AI commercial-intelligence platform that turns a product catalog into explainable market opportunities — which regions, which prices, which timing — scored from public global data.</p>
+    <div class="meta">
+      <span><b>Architecture</b> &amp; build plan</span>
+      <span><b>2-person</b> MVP · one semester</span>
+      <span><b>Cloud-agnostic</b> via Terraform</span>
+      <span>v1 · June 2026</span>
+    </div>
+
+    <div class="decisions">
+      <div class="dchip"><div class="k">Data budget</div><div class="v">Free-tier <span>first</span></div></div>
+      <div class="dchip"><div class="k">Deployment</div><div class="v">Local + <span>Terraform-ready</span></div></div>
+      <div class="dchip"><div class="k">Vision LLM</div><div class="v">Image extraction <span>· scoped</span></div></div>
+      <div class="dchip"><div class="k">LLM strategy</div><div class="v">Hybrid <span>· cost-aware</span></div></div>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== OVERVIEW / KEY DECISION ===================== -->
+<section id="overview">
+  <div class="wrap reveal">
+    <div class="eyebrow">The core architectural decision</div>
+    <div class="callout">
+      <h3>It is a deterministic enrichment <b>DAG</b> with two genuine LLM reasoning steps — <b>not</b> an autonomous agent swarm.</h3>
+      <p>Build it as a LangGraph <code>StateGraph</code>, keep the MOS arithmetic in pure, auditable Python, and reserve LLM calls for the two places they truly add value. This keeps the system debuggable, near-zero-cost, and academically defensible — and it is the single decision that makes the project finishable by two people.</p>
+      <div class="twonodes">
+        <div class="node">
+          <div class="tag">LLM node · cheap model</div>
+          <div class="nm">Vision attribute extraction</div>
+          <div class="ds">Image / description → structured product attributes (Claude Haiku 4.5)</div>
+        </div>
+        <div class="node">
+          <div class="tag">LLM node · top model</div>
+          <div class="nm">Explainable report generation</div>
+          <div class="ds">Signals → cited commercial recommendation (Claude Sonnet 4.6)</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== DATA FLOW ===================== -->
+<section id="flow">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Section 01 — End-to-end pipeline</div>
+      <h2>From a <em>catalog</em> to a cited recommendation</h2>
+      <p class="lede">Eight stages. Only two of them call an LLM. Checkpointing sits under the whole graph, so a rate-limit failure at product 300 <em>resumes</em> rather than restarts.</p>
+    </div>
+
+    <div class="pipe reveal">
+      <div class="step"><div class="num">1</div><div class="body">
+        <div class="t">Upload <span class="mono">Streamlit → FastAPI POST /catalogs</span></div>
+        <p>Catalog CSV/Excel (+ optional product images). Returns <code>202 + job_id</code> immediately; a background task does the work.</p></div></div>
+      <div class="step"><div class="num">2</div><div class="body">
+        <div class="t">Ingest <span class="mono">IngestionNode</span></div>
+        <p>pandas / openpyxl + Pydantic validation → normalized <code>products[]</code>, files to object storage, rows to Postgres.</p></div></div>
+      <div class="step"><div class="num">3</div><div class="body">
+        <div class="t llm">Extract attributes <span class="mono">Haiku 4.5 · vision</span></div>
+        <p>category · material · color · use-case · keywords + per-field confidence. Text-only fallback when no image; Ollama Qwen2.5-VL fallback in dev.</p></div></div>
+      <div class="step"><div class="num">4</div><div class="body">
+        <div class="t">Enrich — parallel fan-out <span class="mono">LangGraph Send · 7-day cache</span></div>
+        <p>DataForSEO Trends · World Bank + IMF · eBay Browse. Each connector behind a swappable <code>Connector</code> interface. (Reddit / Comtrade optional, flag-gated.)</p></div></div>
+      <div class="step"><div class="num">5</div><div class="body">
+        <div class="t">Score MOS <span class="mono">pure Python</span></div>
+        <p>winsorize → min-max → weighted sum. Deterministic, unit-testable, exactly reproducible. No LLM in the arithmetic.</p></div></div>
+      <div class="step"><div class="num">6</div><div class="body">
+        <div class="t">Geo match <span class="mono">GeoMatchingNode</span></div>
+        <p>Rank countries from World Bank GNI-PPP + e-commerce penetration + eBay listing density.</p></div></div>
+      <div class="step"><div class="num">7</div><div class="body">
+        <div class="t llm">Generate report <span class="mono">Sonnet 4.6 · cited schema</span></div>
+        <p>Per-category synthesis with 2–3 per-product drill-downs. Every claim cites a specific datum via a <code>Citation</code> Pydantic schema.</p></div></div>
+      <div class="step"><div class="num">8</div><div class="body">
+        <div class="t">Package &amp; visualize <span class="mono">Streamlit dashboard</span></div>
+        <p>Stacked-bar factor contribution · ranked table · country choropleth — the explainability layer.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== STACK ===================== -->
+<section id="stack">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Section 02 — Component architecture</div>
+      <h2>A small stack, <em>deliberately</em> chosen</h2>
+      <p class="lede">Every component earns its place. The recurring theme: pick the option that satisfies the thesis objective at the lowest operational cost.</p>
+    </div>
+    <div class="grid g3 reveal">
+      <div class="card"><div class="lab">Frontend</div><h4>Streamlit</h4><div class="tech">Community Cloud · free</div><p>In the brief and fastest to a thesis demo. Native dataframe + chart widgets; stacked bars and a choropleth are ~20 lines each.</p></div>
+      <div class="card"><div class="lab">API</div><h4>FastAPI · async</h4><div class="tech">Pydantic contracts</div><p>Async fits the parallel connector fan-out. Pydantic models are the shared contract with LangGraph state. Free OpenAPI docs.</p></div>
+      <div class="card"><div class="lab">Orchestration</div><h4>LangGraph StateGraph</h4><div class="tech">Send · checkpoint/resume</div><p>Fixed DAG, parallel scatter/gather, conditional fallback edges. CrewAI / AutoGen explicitly rejected — wrong abstraction for a pipeline.</p></div>
+      <div class="card"><div class="lab">Scoring</div><h4>Pure Python</h4><div class="tech">NumPy · scikit-learn</div><p>Deterministic and reproducible — mandatory for the methodology chapter. The MOS arithmetic never touches an LLM.</p></div>
+      <div class="card"><div class="lab">Relational store</div><h4>PostgreSQL 16</h4><div class="tech">+ pgvector ready</div><p>Products, enrichment cache, MOS results, LangGraph checkpoints — one database does it all.</p></div>
+      <div class="card"><div class="lab">Vector store</div><h4>ChromaDB · embedded</h4><div class="tech">optional · lightly used</div><p>Honors the proposal, zero infra. Scope = report grounding only. pgvector is the cloud migration path.</p></div>
+      <div class="card"><div class="lab">Object storage</div><h4>S3-compatible</h4><div class="tech">boto3 · S3_ENDPOINT_URL</div><p>Identical code across S3 / GCS / Azure Blob / SeaweedFS. Product images and uploaded catalogs.</p></div>
+      <div class="card"><div class="lab">Async work</div><h4>FastAPI BackgroundTasks</h4><div class="tech">no Celery / Redis</div><p>A batch academic tool serves no concurrent users. Status row in Postgres for progress. Celery is documented as the scale-out path, not built.</p></div>
+      <div class="card"><div class="lab">LLM provider</div><h4>LLM_PROVIDER switch</h4><div class="tech">Claude ⇄ Ollama</div><p>Qwen2.5-VL locally for free dev; Claude API for the demo. Flip with one env var.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== DATA SOURCES ===================== -->
+<section id="data">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Section 03 — Data source plan · free-first</div>
+      <h2>The signals that <em>feed</em> the score</h2>
+      <p class="lede">The MVP runs entirely on Tier&nbsp;0. Paid sources are pluggable connectors, switched on only for the final demo. Total realistic cost ≈ €250–400.</p>
+    </div>
+
+    <div class="tier reveal">
+      <div class="th"><div class="name">Tier 0 — always free</div><div class="badge b-free">runs the whole MVP</div></div>
+      <div class="srcs">
+        <div class="src"><div><div class="sn">World Bank Indicators</div><div class="sd">GDP · GNI/PPP · population · e-commerce penetration</div></div><div class="pill">no key</div></div>
+        <div class="src"><div><div class="sn">IMF DataMapper</div><div class="sd">forward-looking GDP growth — the signal WB lacks</div></div><div class="pill">no key</div></div>
+        <div class="src"><div><div class="sn">OECD SDMX-JSON</div><div class="sd">PPP + consumer indicators (38 countries)</div></div><div class="pill">no key</div></div>
+        <div class="src"><div><div class="sn">eBay Browse API</div><div class="sd">cleanest legitimate marketplace demand signal</div></div><div class="pill">5k/day</div></div>
+      </div>
+    </div>
+
+    <div class="tier reveal">
+      <div class="th"><div class="name">Tier 1 — ~$50 one-time deposit</div><div class="badge b-cheap">the workhorse</div></div>
+      <div class="srcs">
+        <div class="src"><div><div class="sn">DataForSEO</div><div class="sd">Trends (~$0.001/task) · keyword volume · Amazon SERP/BSR — the legitimate replacement for pytrends</div></div><div class="pill">pay-go</div></div>
+        <div class="src"><div><div class="sn">A 500-product run</div><div class="sd">costs single-digit dollars with 7-day caching</div></div><div class="pill">≈ $</div></div>
+      </div>
+    </div>
+
+    <div class="tier reveal">
+      <div class="th"><div class="name">Tier 2 — optional · disabled by default</div><div class="badge b-opt">demo / validation</div></div>
+      <div class="srcs">
+        <div class="src"><div><div class="sn">Keepa · €49/mo</div><div class="sd">Amazon BSR / price history → MOS validation ground truth</div></div><div class="pill">~1 mo</div></div>
+        <div class="src"><div><div class="sn">Exploding Topics / Glimpse</div><div class="sd">early-trend detection · absolute search volume</div></div><div class="pill">opt</div></div>
+        <div class="src"><div><div class="sn">Reddit · PRAW free tier</div><div class="sd">gated + rate-limited (~100/day) — never on critical path</div></div><div class="pill">best-effort</div></div>
+        <div class="src"><div><div class="sn">University library?</div><div class="sd">check Euromonitor / Statista — free high-quality growth data</div></div><div class="pill">check</div></div>
+      </div>
+    </div>
+
+    <!-- AMAZON VERDICT -->
+    <div class="verdict reveal" id="amazon">
+      <div class="vh">
+        <div class="lab">Direct answer — the Amazon question</div>
+        <h3>Amazon does not give third parties market intelligence.</h3>
+        <p>The official channels are off-limits — economically and, for PA-API, <em>legally</em>. The clean path is legitimate resellers, and Amazon data used mainly as a validation benchmark. The reasoning itself is a strong methodology section.</p>
+      </div>
+      <div class="vlist">
+        <div class="vrow"><div class="stat no">NO</div><div class="vt"><b>SP-API</b> — scoped to a seller's own data, now ~$1,400/yr for third-party devs. Not viable.</div></div>
+        <div class="vrow"><div class="stat no">NO</div><div class="vt"><b>Product Advertising API</b> — needs qualifying affiliate sales, and its data-use clause <b>prohibits training/improving LLMs</b>. Disqualified on its own terms.</div></div>
+        <div class="vrow"><div class="stat no">NO</div><div class="vt"><b>Direct scraping</b> — ToS violation; an avoidable academic-integrity flag in a defense.</div></div>
+        <div class="vrow"><div class="stat yes">YES</div><div class="vt"><b>DataForSEO Amazon SERP/BSR</b> — legitimate reseller, no seller account, citable. Your Amazon-adjacent demand signal.</div></div>
+        <div class="vrow"><div class="stat yes">YES</div><div class="vt"><b>Keepa</b> — BSR / price history as internal validation ground truth.</div></div>
+        <div class="vrow"><div class="stat yes">YES</div><div class="vt"><b>eBay Browse API</b> — the academically cleanest official marketplace signal.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== MOS ===================== -->
+<section id="mos">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Section 04 — Market Opportunity Score</div>
+      <h2>A score you can <em>defend</em>, not just compute</h2>
+      <p class="lede">Frame the methodology on the OECD/JRC Handbook. Because aggregation is linear, explainability is exact: <code>contribution = weight × score</code>.</p>
+    </div>
+
+    <div class="reveal">
+      <div class="sectnum" style="margin-bottom:14px">PROPOSED INDEX — implement config-driven, then analyze &amp; reconcile</div>
+      <div class="mos" id="mosbars">
+        <div class="bar"><div class="fl">Trend / Demand<small class="desc">DataForSEO 12-mo slope</small></div><div class="track"><div class="fill" data-w="30"></div></div><div class="pct">30%</div></div>
+        <div class="bar"><div class="fl">Growth<small class="desc">IMF GDP-growth forecast</small></div><div class="track"><div class="fill" data-w="25"></div></div><div class="pct">25%</div></div>
+        <div class="bar"><div class="fl">Geographic<small class="desc">GNI-PPP + e-commerce + eBay</small></div><div class="track"><div class="fill" data-w="20"></div></div><div class="pct">20%</div></div>
+        <div class="bar"><div class="fl">Seasonality<small class="desc">STL — see caveat</small></div><div class="track"><div class="fill" data-w="15"></div></div><div class="pct">15%</div></div>
+        <div class="bar"><div class="fl">Consumer Interest<small class="desc">keyword volume + Reddit</small></div><div class="track"><div class="fill" data-w="10"></div></div><div class="pct">10%</div></div>
+      </div>
+      <p class="mosnote"><b>Recommended reconciliation →</b> Trend, Seasonality and keyword-volume all derive from one DataForSEO signal (~55% shared-source). Report this honestly, then present a validated <b>3-factor MOS</b> — Demand Trajectory ~45% · Market Attractiveness ~35% · Marketplace Demand ~20% — with an equal-weights baseline. A clean, independent, fully-validated score beats five factors where two are mostly imputed. The journey <em>proposed → analyzed → validated</em> is what earns marks.</p>
+    </div>
+
+    <div class="grid g3 reveal" style="margin-top:34px">
+      <div class="card"><div class="lab">Validation · primary</div><h4>Keepa BSR Spearman</h4><p>50–80 products across 3–5 categories. Spearman ρ between MOS rank and inverse-BSR rank; report ρ, p, 95% CI. <b style="color:var(--mint)">ρ&gt;0.35, p&lt;0.05</b> is defensible — the number that turns "we invented a score" into a contribution.</p></div>
+      <div class="card"><div class="lab">Validation · secondary</div><h4>Sensitivity check</h4><p>Equal-weights baseline comparison + a basic ±25% weight perturbation. Cheap, and shows the ranking isn't an artifact of one weight.</p></div>
+      <div class="card"><div class="lab">Caveat to honor</div><h4>Seasonality on 12 months</h4><p>STL wants ≥24 months. Either pull longer Trends history or drop it from the composite and surface it as a <b style="color:var(--coral)">separate qualitative flag</b> — don't claim a decomposition you can't support.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== INFRA ===================== -->
+<section id="infra">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Section 05 — Cloud-agnostic IaC</div>
+      <h2>Portable Terraform, <em>honestly</em> framed</h2>
+      <p class="lede">The portability boundary is the container API. Claim "cloud-portable IaC," not "multi-cloud-live." You satisfy the objective with modular Terraform deployed once + a written portability analysis — not by standing up a second cloud.</p>
+    </div>
+    <div class="grid g3 reveal">
+      <div class="card"><div class="lab">Phase 1 · required</div><h4>Local</h4><div class="tech">docker-compose</div><p>FastAPI · Streamlit · Postgres+pgvector · (optional Chroma). <code>.env</code> secrets, zero Terraform. <b style="color:var(--mint)">This is your demo and your MVP.</b></p></div>
+      <div class="card"><div class="lab">Phase 2 · optional stretch</div><h4>Single cloud</h4><div class="tech">GKE Autopilot / Cloud Run</div><p>Scale-to-zero on the $300 GCP credit, or one VM running docker-compose. Modular Terraform: compute · postgres · object-storage · secrets behind stable interfaces. ≈ €0–30/mo.</p></div>
+      <div class="card" style="border-color:rgba(233,106,76,.25)"><div class="lab" style="color:var(--coral)">Phase 3 · cut</div><h4>Multi-cloud</h4><div class="tech" style="color:var(--coral)">does not exist</div><p>Replaced by a written portability analysis. A 3-cloud proof is months of infra work that earns ~30 seconds of examiner attention.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== SCOPE ===================== -->
+<section id="scope">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Section 06 — Scope discipline</div>
+      <h2>The line between <em>finishing</em> and not</h2>
+      <p class="lede">The easy failure mode for this TFM is over-scope. Agree this list before writing code — and protect it.</p>
+    </div>
+    <div class="scope reveal">
+      <div class="col keep">
+        <div class="ch">✦ Core MVP — build · validate · write up</div>
+        <ul>
+          <li><span class="ic">✓</span><span><b>CSV/Excel ingestion</b> + Pydantic validation</span></li>
+          <li><span class="ic">✓</span><span><b>Image → attribute extraction</b> (Haiku vision) — the headline gen-AI feature</span></li>
+          <li><span class="ic">✓</span><span><b>Three connectors:</b> DataForSEO Trends · World Bank + IMF · eBay Browse</span></li>
+          <li><span class="ic">✓</span><span><b>Pure-Python MOS</b> with exact additive explainability</span></li>
+          <li><span class="ic">✓</span><span><b>One Sonnet report node</b>, per category, cited schema</span></li>
+          <li><span class="ic">✓</span><span><b>Streamlit dashboard</b> — stacked bars + ranked table + choropleth</span></li>
+          <li><span class="ic">✓</span><span><b>One validation done well:</b> Keepa BSR Spearman</span></li>
+          <li><span class="ic">✓</span><span><b>One</b> modular Terraform deploy + portability analysis</span></li>
+        </ul>
+      </div>
+      <div class="col cut">
+        <div class="ch">✕ Deferred — say so as "future work"</div>
+        <ul>
+          <li><span class="ic">✕</span><span><b>Multi-cloud</b> / second Terraform provider → written analysis instead</span></li>
+          <li><span class="ic">✕</span><span><b>Celery + Redis</b> → FastAPI BackgroundTasks</span></li>
+          <li><span class="ic">✕</span><span><b>HS-code RAG + UN Comtrade</b> — highest-effort, lowest-reliability. Strong future-work candidate.</span></li>
+          <li><span class="ic">✕</span><span><b>Reddit</b> → optional, best-effort connector</span></li>
+          <li><span class="ic">✕</span><span><b>Seasonality as a real STL factor</b> on 12 months → qualitative flag</span></li>
+          <li><span class="ic">✕</span><span><b>Dedicated vector DB</b> as a service → embedded / skip</span></li>
+          <li><span class="ic">✕</span><span><b>COINr/Sobol · AHP · predictive validity</b> → future rigor</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== ROADMAP ===================== -->
+<section id="roadmap">
+  <div class="wrap">
+    <div class="reveal">
+      <div class="eyebrow">Section 07 — Build roadmap · 2-person · 16 weeks</div>
+      <h2>Mapped to the <em>thesis objectives</em></h2>
+    </div>
+    <div class="timeline reveal">
+      <div class="ph"><div class="pk"><span class="pn">Phase 0 — Scaffold</span><span class="pw">weeks 1–2</span></div>
+        <p>docker-compose stack · FastAPI skeleton · Postgres+pgvector · Streamlit shell · LLM_PROVIDER abstraction. Week-1 spike: validate DataForSEO Trends quality on your real catalog.</p>
+        <div class="obj">→ reproducible MVP base</div></div>
+      <div class="ph"><div class="pk"><span class="pn">Phase 1 — Ingest + Vision</span><span class="pw">weeks 3–4</span></div>
+        <p>Catalog upload → object storage · AttributeExtractionNode (Haiku) + taxonomy mapping + confidence.</p>
+        <div class="obj">→ "LLM extracts product info from images/descriptions"</div></div>
+      <div class="ph"><div class="pk"><span class="pn">Phase 2 — Enrichment</span><span class="pw">weeks 5–7</span></div>
+        <p>Three connectors behind a Connector interface · parallel Send fan-out · 7-day cache · checkpointing.</p>
+        <div class="obj">→ "Enrich with public global data sources"</div></div>
+      <div class="ph"><div class="pk"><span class="pn">Phase 3 — MOS engine</span><span class="pw">weeks 8–9</span></div>
+        <p>Config-driven pure-Python scoring · winsorize+min-max · additive explainability · redundancy analysis.</p>
+        <div class="obj">→ "Compute explainable MOS"</div></div>
+      <div class="ph"><div class="pk"><span class="pn">Phase 4 — Geo + Report</span><span class="pw">weeks 10–11</span></div>
+        <p>GeoMatchingNode · Sonnet report (cited schema, per-category) · Streamlit dashboard.</p>
+        <div class="obj">→ "Explainable recommendations via LLM"</div></div>
+      <div class="ph"><div class="pk"><span class="pn">Phase 5 — Validation</span><span class="pw">weeks 12–13</span></div>
+        <p>Keepa BSR Spearman (ρ, p, CI) · equal-weights baseline · 3-factor reconciliation.</p>
+        <div class="obj">→ scientific rigor / methodology chapter</div></div>
+      <div class="ph"><div class="pk"><span class="pn">Phase 6 — IaC</span><span class="pw">weeks 14–16</span></div>
+        <p>Modular Terraform (one cloud) + portability analysis · thesis write-up.</p>
+        <div class="obj">→ "Cloud-agnostic Terraform IaC"</div></div>
+    </div>
+
+    <!-- RISKS -->
+    <div class="reveal" style="margin-top:60px">
+      <div class="sectnum" style="margin-bottom:16px">TOP RISKS &amp; MITIGATIONS</div>
+      <div class="grid g2">
+        <div class="risk"><span class="sev p0">P0 · CRITICAL</span><h5>Over-scope</h5><p>~3× the surface area two students can build, validate and write up.</p><div class="mit"><b>Mitigate →</b> the cut list is non-negotiable; protect it.</div></div>
+        <div class="risk"><span class="sev p0">P0 · CRITICAL</span><h5>Reddit gated &amp; rate-limited</h5><p>Pre-approval + ~100 req/day could leave a MOS factor with no data.</p><div class="mit"><b>Mitigate →</b> optional from day one; never on the critical path.</div></div>
+        <div class="risk"><span class="sev p1">P1 · HIGH</span><h5>DataForSEO = single demand source</h5><p>Trends + seasonality + keyword volume all route through one vendor.</p><div class="mit"><b>Mitigate →</b> validate data quality in week 1; keep the adapter swappable.</div></div>
+        <div class="risk"><span class="sev p1">P1 · HIGH</span><h5>Shared-source correlation</h5><p>~55% of the 5-factor score derives from one signal.</p><div class="mit"><b>Mitigate →</b> pairwise redundancy check → prefer the 3-factor MOS.</div></div>
+        <div class="risk"><span class="sev p2">P2 · WATCH</span><h5>Cost creep from debugging</h5><p>Realistic total ≈ €250–400, not €130.</p><div class="mit"><b>Mitigate →</b> cache aggressively; develop on local Ollama.</div></div>
+        <div class="risk"><span class="sev p2">P2 · WATCH</span><h5>Legal / ToS</h5><p>Amazon official APIs avoided; resold data kept within redistribution terms.</p><div class="mit"><b>Mitigate →</b> validation data stays internal, not republished.</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap foot">
+    <div class="big">Ship a <span>3-factor, vision-enabled, single-cloud</span> MVP — then defend it.</div>
+    <div class="auth">
+      <b>MarketMind AI</b> · Framework de Inteligencia Comercial<br/>
+      Álvaro A. De Marco Neto<br/>
+      Miguel A. Blanco Salcedo<br/>
+      Máster IA Generativa · EBIS · Jun 2026
+    </div>
+  </div>
+</footer>
+
+<script>
+  // scroll progress
+  const prog=document.getElementById('progress');
+  const onScroll=()=>{
+    const h=document.documentElement;
+    const sc=(h.scrollTop)/(h.scrollHeight-h.clientHeight);
+    prog.style.width=(sc*100)+'%';
+  };
+  document.addEventListener('scroll',onScroll,{passive:true});onScroll();
+
+  // reveal on scroll
+  const io=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});
+  },{threshold:.12,rootMargin:'0px 0px -8% 0px'});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // animate MOS bars when in view
+  const mos=document.getElementById('mosbars');
+  const mio=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){
+      e.target.querySelectorAll('.fill').forEach((f,i)=>{
+        setTimeout(()=>{f.style.width=(f.dataset.w*2.6)+'%';if(i>2)f.classList.add('mint');},120+i*90);
+      });
+      mio.unobserve(e.target);
+    }});
+  },{threshold:.4});
+  if(mos)mio.observe(mos);
+
+  // active nav link
+  const links=[...document.querySelectorAll('.navlinks a')];
+  const secs=links.map(a=>document.querySelector(a.getAttribute('href')));
+  const sio=new IntersectionObserver((es)=>{
+    es.forEach(e=>{if(e.isIntersecting){
+      const id='#'+e.target.id;links.forEach(l=>l.classList.toggle('active',l.getAttribute('href')===id));
+    }});
+  },{threshold:.5,rootMargin:'-20% 0px -40% 0px'});
+  secs.forEach(s=>{if(s)sio.observe(s)});
+</script>
+</body>
+</html>
