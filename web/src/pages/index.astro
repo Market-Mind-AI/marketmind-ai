@@ -1,0 +1,164 @@
+---
+import Base from "../layouts/Base.astro";
+---
+
+<Base title="MarketMind AI — New analysis">
+  <section class="wrap" style="padding: 24px 24px 12px; max-width: 760px;">
+    <p class="eyebrow">Commercial intelligence</p>
+    <h1 style="font-size: clamp(2.1rem, 5vw, 3.1rem);">
+      Score a product's <span style="color: var(--gold);">market opportunity</span> from an image and a sentence.
+    </h1>
+    <p class="muted" style="font-size: 1.05rem; max-width: 56ch;">
+      Drop product photos, describe what it is, and MarketMind extracts attributes, enriches
+      them with public signals, and returns a transparent Market Opportunity Score with an
+      explainable report.
+    </p>
+  </section>
+
+  <section class="wrap" style="max-width: 760px; padding-bottom: 64px;">
+    <form id="analyze-form" class="card" style="padding: 26px; display: grid; gap: 22px;">
+      <div>
+        <label class="field-label" for="description">Product description</label>
+        <textarea
+          id="description"
+          name="description"
+          rows="4"
+          required
+          placeholder="Hand-poured soy candle with cedar + amber scent, matte ceramic vessel, refillable…"
+        ></textarea>
+      </div>
+
+      <div>
+        <label class="field-label">Product images</label>
+        <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Add product images">
+          <input id="file-input" type="file" accept="image/*" multiple hidden />
+          <div class="dz-inner">
+            <strong>Drag images here</strong>
+            <span class="faint mono" style="font-size: 0.78rem;">or click to browse · PNG / JPG</span>
+          </div>
+        </div>
+        <div id="previews" class="previews"></div>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <button id="submit-btn" type="submit" class="btn">Run analysis →</button>
+        <span id="status" class="mono faint" style="font-size: 0.8rem;"></span>
+      </div>
+    </form>
+  </section>
+</Base>
+
+<style>
+  .dropzone {
+    border: 1.5px dashed var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    padding: 34px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+  .dropzone:hover,
+  .dropzone:focus,
+  .dropzone.drag {
+    border-color: var(--mint);
+    background: var(--mint-soft);
+    outline: none;
+  }
+  .dz-inner {
+    display: grid;
+    gap: 6px;
+  }
+  .previews {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .previews img {
+    width: 78px;
+    height: 78px;
+    object-fit: cover;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+  }
+</style>
+
+<script>
+  import { createAnalysis } from "../lib/api";
+
+  // Re-run on every astro:page-load so view-transition navigations rebind.
+  function init() {
+    const form = document.getElementById("analyze-form") as HTMLFormElement | null;
+    if (!form || form.dataset.bound === "1") return;
+    form.dataset.bound = "1";
+
+    const dropzone = document.getElementById("dropzone")!;
+    const fileInput = document.getElementById("file-input") as HTMLInputElement;
+    const previews = document.getElementById("previews")!;
+    const statusEl = document.getElementById("status")!;
+    const submitBtn = document.getElementById("submit-btn") as HTMLButtonElement;
+
+    let files: File[] = [];
+
+    function renderPreviews() {
+      previews.innerHTML = "";
+      for (const f of files) {
+        const img = document.createElement("img");
+        img.src = URL.createObjectURL(f);
+        img.alt = f.name;
+        previews.appendChild(img);
+      }
+    }
+
+    function addFiles(list: FileList | null) {
+      if (!list) return;
+      for (const f of Array.from(list)) {
+        if (f.type.startsWith("image/")) files.push(f);
+      }
+      renderPreviews();
+    }
+
+    dropzone.addEventListener("click", () => fileInput.click());
+    dropzone.addEventListener("keydown", (e) => {
+      if ((e as KeyboardEvent).key === "Enter" || (e as KeyboardEvent).key === " ") fileInput.click();
+    });
+    fileInput.addEventListener("change", () => addFiles(fileInput.files));
+
+    ["dragenter", "dragover"].forEach((evt) =>
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropzone.classList.add("drag");
+      }),
+    );
+    ["dragleave", "drop"].forEach((evt) =>
+      dropzone.addEventListener(evt, (e) => {
+        e.preventDefault();
+        dropzone.classList.remove("drag");
+      }),
+    );
+    dropzone.addEventListener("drop", (e) => addFiles((e as DragEvent).dataTransfer?.files ?? null));
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const description = (document.getElementById("description") as HTMLTextAreaElement).value.trim();
+      if (!description) {
+        statusEl.textContent = "add a description first";
+        return;
+      }
+      submitBtn.disabled = true;
+      statusEl.textContent = "submitting…";
+      try {
+        const res = await createAnalysis(description, files);
+        statusEl.textContent = "started · redirecting…";
+        window.location.assign(`/analyzing/${res.id}`);
+      } catch (err) {
+        statusEl.textContent = err instanceof Error ? err.message : "request failed";
+        submitBtn.disabled = false;
+      }
+    });
+  }
+
+  init();
+  document.addEventListener("astro:page-load", init);
+</script>

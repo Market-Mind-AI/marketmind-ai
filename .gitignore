@@ -56,3 +56,6 @@ Thumbs.db
 .idea/
 .vscode/
 *.swp
+
+# ---- Claude Code (machine-local) ----
+.claude/settings.local.json

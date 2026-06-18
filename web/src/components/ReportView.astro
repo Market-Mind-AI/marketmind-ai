@@ -1,0 +1,281 @@
+---
+// Client-rendered report body. Both /report/[id] and /r/[slug] mount this and
+// hydrate it from the API by analysis id. Markup is built in the client script
+// from the JSON response, keeping the static build trivial.
+interface Props {
+  /** Show the "download PDF / share" action bar (hidden on public share view). */
+  showActions?: boolean;
+}
+const { showActions = true } = Astro.props;
+---
+
+<div class="report-root" data-show-actions={showActions ? "1" : "0"}>
+  <div class="product-identity" style="margin-bottom: 28px;">
+    <img class="product-thumb" id="r-thumb" alt="Product" />
+    <div>
+      <span id="r-tier" class="tier-pill tier-moderate" style="display: none;"></span>
+      <h1 class="product-title" id="r-title" style="margin-top: 8px;">Loading…</h1>
+    </div>
+  </div>
+
+  <div id="r-state" class="muted mono" style="font-size: 0.85rem;">Loading report…</div>
+
+  <div id="r-body" style="display: none;">
+    <!-- score -->
+    <section class="card" style="padding: 24px; margin-bottom: 22px;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px;">
+        <div>
+          <p class="eyebrow">Market Opportunity Score</p>
+          <div style="display: flex; align-items: baseline; gap: 12px;">
+            <span id="r-total" class="mono" style="font-size: 3rem; color: var(--gold);">—</span>
+            <span class="faint mono">/ 100</span>
+          </div>
+        </div>
+        <p id="r-verdict" class="muted" style="max-width: 40ch; text-align: right;"></p>
+      </div>
+      <p id="r-explanation" class="muted" style="margin-top: 8px; font-size: 0.9rem;"></p>
+      <div id="r-factors" class="factors"></div>
+    </section>
+
+    <!-- summary -->
+    <section class="card" style="padding: 24px; margin-bottom: 22px;">
+      <p class="eyebrow">Summary</p>
+      <p id="r-summary" class="muted"></p>
+    </section>
+
+    <!-- markets / pricing / timing -->
+    <div class="grid-3">
+      <section class="card" style="padding: 22px;">
+        <p class="eyebrow">Markets</p>
+        <ul id="r-markets" class="plain"></ul>
+      </section>
+      <section class="card" style="padding: 22px;">
+        <p class="eyebrow">Pricing</p>
+        <div id="r-price"></div>
+      </section>
+      <section class="card" style="padding: 22px;">
+        <p class="eyebrow">Timing</p>
+        <div id="r-timing"></div>
+      </section>
+    </div>
+
+    <!-- recommendations -->
+    <section class="card" style="padding: 24px; margin-top: 22px;">
+      <p class="eyebrow">Recommendations</p>
+      <ul id="r-recs" class="plain"></ul>
+    </section>
+
+    <!-- citations -->
+    <section style="margin-top: 22px;">
+      <p class="eyebrow">Citations</p>
+      <ul id="r-citations" class="citations"></ul>
+    </section>
+  </div>
+</div>
+
+<style>
+  .factors {
+    display: grid;
+    gap: 8px;
+    margin-top: 20px;
+  }
+  .factor {
+    display: grid;
+    grid-template-columns: 120px 1fr 56px;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.82rem;
+  }
+  .factor .name {
+    font-family: var(--font-mono);
+    text-transform: lowercase;
+    color: var(--ink-dim);
+  }
+  .bar {
+    height: 7px;
+    border-radius: 999px;
+    background: var(--bg-elev-2);
+    overflow: hidden;
+  }
+  .bar > span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, var(--mint), var(--gold));
+  }
+  .factor .val {
+    font-family: var(--font-mono);
+    text-align: right;
+    color: var(--ink);
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
+  }
+  @media (max-width: 760px) {
+    .grid-3 {
+      grid-template-columns: 1fr;
+    }
+  }
+  .plain {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 12px;
+  }
+  .plain li .muted {
+    font-size: 0.85rem;
+  }
+  .citations {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    font-family: var(--font-mono);
+  }
+  .price-band {
+    font-family: var(--font-display);
+    font-size: 1.6rem;
+    color: var(--gold);
+  }
+</style>
+
+<script>
+  import {
+    getAnalysis,
+    reportPdfUrl,
+    type AnalysisResponse,
+    type ReportResponse,
+  } from "../lib/api";
+
+  function tierClass(tier: string): string {
+    const t = tier.toLowerCase();
+    if (t === "strong") return "tier-strong";
+    if (t === "weak") return "tier-weak";
+    return "tier-moderate";
+  }
+
+  function el<K extends keyof HTMLElementTagNameMap>(
+    tag: K,
+    html: string,
+    cls?: string,
+  ): HTMLElementTagNameMap[K] {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    node.innerHTML = html;
+    return node;
+  }
+
+  function render(a: AnalysisResponse) {
+    const title = document.getElementById("r-title")!;
+    const thumb = document.getElementById("r-thumb") as HTMLImageElement;
+    const tierPill = document.getElementById("r-tier")!;
+    const state = document.getElementById("r-state")!;
+    const body = document.getElementById("r-body")!;
+
+    const cat = a.attributes?.category ?? "Product";
+    const sub = a.attributes?.subcategory;
+    title.textContent = sub ? `${cat} · ${sub}` : cat;
+
+    const ref = a.image_refs?.[0];
+    if (ref) {
+      thumb.src = ref;
+      thumb.style.display = "";
+    } else {
+      thumb.style.display = "none";
+    }
+
+    if (a.status.toLowerCase() === "failed") {
+      state.textContent = a.failure_reason ?? "Analysis failed.";
+      return;
+    }
+    if (!a.report) {
+      state.textContent = "Report is not ready yet.";
+      return;
+    }
+
+    if (a.score) {
+      tierPill.style.display = "inline-block";
+      tierPill.className = `tier-pill ${tierClass(a.score.tier)}`;
+      tierPill.textContent = a.score.tier;
+      document.getElementById("r-total")!.textContent = a.score.total.toFixed(1);
+      document.getElementById("r-explanation")!.textContent = a.score.explanation;
+
+      const factorsEl = document.getElementById("r-factors")!;
+      factorsEl.innerHTML = "";
+      for (const f of a.score.factors) {
+        const row = el("div", "", "factor");
+        row.appendChild(el("span", `${f.factor}${f.imputed ? " *" : ""}`, "name"));
+        const bar = el("div", `<span style="width:${Math.max(0, Math.min(100, f.normalized_score))}%"></span>`, "bar");
+        row.appendChild(bar);
+        row.appendChild(el("span", f.normalized_score.toFixed(0), "val"));
+        factorsEl.appendChild(row);
+      }
+    }
+
+    const rep: ReportResponse = a.report;
+    document.getElementById("r-verdict")!.textContent = rep.verdict;
+    document.getElementById("r-summary")!.textContent = rep.summary;
+
+    const markets = document.getElementById("r-markets")!;
+    markets.innerHTML = "";
+    for (const m of rep.markets) {
+      const li = el(
+        "li",
+        `<strong>${m.country_name}</strong> <span class="mono faint">${m.score.toFixed(0)}</span><div class="muted">${m.rationale}</div>`,
+      );
+      markets.appendChild(li);
+    }
+
+    const price = document.getElementById("r-price")!;
+    price.innerHTML = `
+      <div class="price-band">${rep.price_band.currency} ${rep.price_band.low}–${rep.price_band.high}</div>
+      <p class="muted" style="font-size:0.85rem; margin-top:6px;">${rep.price_band.note ?? ""}</p>`;
+
+    const timing = document.getElementById("r-timing")!;
+    timing.innerHTML = `
+      <div class="price-band" style="font-size:1.3rem;">${rep.launch_window.label}</div>
+      <p class="muted" style="font-size:0.85rem; margin-top:6px;">${rep.launch_window.peak_note ?? ""}</p>`;
+
+    const recs = document.getElementById("r-recs")!;
+    recs.innerHTML = "";
+    for (const r of rep.recommendations ?? []) {
+      recs.appendChild(el("li", `<span class="muted">${r}</span>`));
+    }
+
+    const cites = document.getElementById("r-citations")!;
+    cites.innerHTML = "";
+    for (const c of rep.citations ?? []) {
+      cites.appendChild(el("li", `${c.source} — ${c.detail} <span class="faint">(${c.as_of})</span>`));
+    }
+
+    state.style.display = "none";
+    body.style.display = "block";
+
+    // wire the PDF action if present
+    const pdfLink = document.getElementById("r-pdf") as HTMLAnchorElement | null;
+    if (pdfLink) pdfLink.href = reportPdfUrl(a.id);
+  }
+
+  function init() {
+    const root = document.querySelector(".report-root");
+    if (!root) return;
+    // id is the last path segment (works for /report/{id} and /r/{slug}).
+    const id = location.pathname.split("/").filter(Boolean).pop();
+    if (!id || id === "_") return;
+
+    getAnalysis(id)
+      .then(render)
+      .catch((err) => {
+        const state = document.getElementById("r-state");
+        if (state) state.textContent = err instanceof Error ? err.message : "Failed to load report.";
+      });
+  }
+
+  init();
+  document.addEventListener("astro:page-load", init);
+</script>

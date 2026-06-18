@@ -1,0 +1,73 @@
+# MarketMind AI — local development stack.
+#
+# Brings up the full pipeline locally with one command:
+#   docker compose up
+#
+#   db  : Postgres 16 + pgvector (vector store for product embeddings / comparables)
+#   api : FastAPI backend (the application + infrastructure layers)
+#   web : Astro frontend (talks to the api via PUBLIC_API_BASE)
+#
+# The api defaults to provider_mode="fake" (fully offline, no API keys required).
+# Set MARKETMIND_PROVIDER_MODE=real + the relevant credentials in api/.env to
+# exercise the real adapters. Postgres is wired up regardless so persistence /
+# pgvector can be exercised even in fake mode (set MARKETMIND_USE_IN_MEMORY_PERSISTENCE=false).
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: marketmind-db
+    environment:
+      POSTGRES_USER: marketmind
+      POSTGRES_PASSWORD: marketmind
+      POSTGRES_DB: marketmind
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marketmind -d marketmind"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./api
+    container_name: marketmind-api
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - ./api/.env
+    environment:
+      # Container-internal DB host overrides any localhost value from .env.
+      MARKETMIND_DATABASE_URL: postgresql+asyncpg://marketmind:marketmind@db:5432/marketmind
+      MARKETMIND_HOST: "0.0.0.0"
+      MARKETMIND_PORT: "8000"
+      MARKETMIND_STORAGE_ROOT: /data/uploads
+    ports:
+      - "8000:8000"
+    volumes:
+      - objectstore:/data/uploads
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+    container_name: marketmind-web
+    depends_on:
+      - api
+    environment:
+      # Browser-facing base URL for the api (host port mapping above).
+      PUBLIC_API_BASE: http://localhost:8000
+    ports:
+      - "4321:4321"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+    driver: local
+  objectstore:
+    driver: local

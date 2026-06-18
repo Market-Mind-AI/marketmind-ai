@@ -1,0 +1,53 @@
+---
+import { ClientRouter } from "astro:transitions";
+import "../styles/global.css";
+
+interface Props {
+  title?: string;
+  description?: string;
+}
+
+const {
+  title = "MarketMind AI",
+  description = "Generative commercial intelligence — score market opportunity from a product image and a sentence.",
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <title>{title}</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,560;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- App-like view transitions across page navigations -->
+    <ClientRouter />
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="brand" href="/">
+        <span class="dot"></span>
+        MarketMind<span class="faint" style="font-family: var(--font-mono); font-size: 0.78rem;"
+          >AI</span
+        >
+      </a>
+      <a class="mono faint" href="/" style="font-size: 0.78rem;">new analysis ↗</a>
+    </header>
+
+    <main>
+      <slot />
+    </main>
+
+    <footer class="wrap" style="padding: 48px 24px; color: var(--ink-faint); font-size: 0.82rem;">
+      <span class="mono">MarketMind AI — commercial intelligence MVP</span>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+---
+import Base from "../../layouts/Base.astro";
+import ReportView from "../../components/ReportView.astro";
+
+// Public, read-only share view. The slug is the analysis id; the report is
+// fetched client-side from the same API. No action bar / no upload affordances.
+export function getStaticPaths() {
+  // Placeholder path; the real slug (= analysis id) is read from the URL client-side.
+  return [{ params: { slug: "_" } }];
+}
+---
+
+<Base title="MarketMind AI — Shared report">
+  <section class="wrap" style="max-width: 900px; padding: 16px 24px 64px;">
+    <p class="eyebrow">Shared report</p>
+    <ReportView showActions={false} />
+
+    <div class="card" style="padding: 18px 22px; margin-top: 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px;">
+      <span class="muted" style="font-size: 0.9rem;">Want to score your own product?</span>
+      <a class="btn" href="/">Start an analysis →</a>
+    </div>
+  </section>
+</Base>
