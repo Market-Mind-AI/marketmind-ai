@@ -1,5 +1,7 @@
 # MarketMind AI
 
+[![CI](https://github.com/mikews93/marketmind-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/mikews93/marketmind-ai/actions/workflows/ci.yml)
+
 > **Framework de Inteligencia Comercial basado en IA Generativa** para identificar oportunidades de mercado a partir de datos públicos globales.
 
 MarketMind AI turns a single product (images + a free-text description) — or a whole catalog — into an **explainable market-opportunity report**: a Market Opportunity Score (MOS), the best target markets, suggested pricing, and the optimal launch window, every claim backed by a cited public data source.

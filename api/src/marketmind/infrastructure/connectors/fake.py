@@ -42,7 +42,7 @@ def _stable_unit(seed: int, salt: str, fingerprint: str) -> float:
     salted built-in ``hash``).
     """
     digest = hashlib.blake2b(
-        f"{seed}␟{salt}␟{fingerprint}".encode("utf-8"),
+        f"{seed}␟{salt}␟{fingerprint}".encode(),
         digest_size=8,
     ).digest()
     return int.from_bytes(digest, "big") / float(1 << 64)
@@ -59,9 +59,7 @@ class _DeterministicProvider:
         self._seed = seed
 
     def _raw(self, attributes: ProductAttributes) -> float:
-        unit = _stable_unit(
-            self._seed, self._salt, _attributes_fingerprint(attributes)
-        )
+        unit = _stable_unit(self._seed, self._salt, _attributes_fingerprint(attributes))
         return self._low + unit * (self._high - self._low)
 
 

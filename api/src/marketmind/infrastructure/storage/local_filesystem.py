@@ -35,9 +35,7 @@ class LocalFilesystemObjectStorage(ObjectStorage):
         self._root.mkdir(parents=True, exist_ok=True)
         self._base_url = base_url.rstrip("/")
 
-    async def store(
-        self, filename: str, data: bytes, content_type: str
-    ) -> str:
+    async def store(self, filename: str, data: bytes, content_type: str) -> str:
         safe = _safe_filename(filename)
         # Uniquify to avoid clobbering concurrent uploads with the same name.
         key = f"{uuid.uuid4().hex}-{safe}"

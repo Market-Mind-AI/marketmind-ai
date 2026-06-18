@@ -44,20 +44,26 @@ def _esc(value: object) -> str:
 
 def render_report_html(report: OpportunityReport, analysis: Analysis) -> str:
     """Build the full HTML document string for a report."""
-    markets_rows = "\n".join(
-        f"<tr><td>{_esc(m.country_name)} ({_esc(m.country_code)})</td>"
-        f"<td>{m.score:.0f}/100</td><td>{_esc(m.rationale)}</td></tr>"
-        for m in report.markets
-    ) or '<tr><td colspan="3" class="muted">No markets ranked.</td></tr>'
+    markets_rows = (
+        "\n".join(
+            f"<tr><td>{_esc(m.country_name)} ({_esc(m.country_code)})</td>"
+            f"<td>{m.score:.0f}/100</td><td>{_esc(m.rationale)}</td></tr>"
+            for m in report.markets
+        )
+        or '<tr><td colspan="3" class="muted">No markets ranked.</td></tr>'
+    )
 
     recs = "\n".join(f"<li>{_esc(r)}</li>" for r in report.recommendations)
     recs_block = f"<ul>{recs}</ul>" if recs else '<p class="muted">None.</p>'
 
-    cites = "\n".join(
-        f"<tr><td>{_esc(c.source)}</td><td>{_esc(c.detail)}</td>"
-        f"<td>{_esc(c.as_of)}</td></tr>"
-        for c in report.citations
-    ) or '<tr><td colspan="3" class="muted">No citations.</td></tr>'
+    cites = (
+        "\n".join(
+            f"<tr><td>{_esc(c.source)}</td><td>{_esc(c.detail)}</td>"
+            f"<td>{_esc(c.as_of)}</td></tr>"
+            for c in report.citations
+        )
+        or '<tr><td colspan="3" class="muted">No citations.</td></tr>'
+    )
 
     pb = report.price_band
     score_line = ""
@@ -86,7 +92,8 @@ def render_report_html(report: OpportunityReport, analysis: Analysis) -> str:
   <p class="muted">{_esc(pb.note)}</p>
 
   <h2>Timing</h2>
-  <p><strong>{_esc(report.launch_window.label)}</strong> — {_esc(report.launch_window.peak_note)}</p>
+  <p><strong>{_esc(report.launch_window.label)}</strong> —
+  {_esc(report.launch_window.peak_note)}</p>
 
   <h2>Recommendations</h2>
   {recs_block}
@@ -102,12 +109,10 @@ def render_report_html(report: OpportunityReport, analysis: Analysis) -> str:
 class HtmlReportRenderer(PdfRenderer):
     """Renders the report to styled HTML bytes (the offline default)."""
 
-    def __init__(self) -> None:  # noqa: D401 - trivial
+    def __init__(self) -> None:
         pass
 
-    async def render(
-        self, report: OpportunityReport, analysis: Analysis
-    ) -> bytes:
+    async def render(self, report: OpportunityReport, analysis: Analysis) -> bytes:
         return render_report_html(report, analysis).encode("utf-8")
 
 

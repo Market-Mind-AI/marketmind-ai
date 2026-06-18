@@ -116,16 +116,12 @@ async def analysis_report_pdf(
     if analysis is None:
         raise HTTPException(status_code=404, detail=f"Analysis not found: {aid}")
     if analysis.report is None:
-        raise HTTPException(
-            status_code=409, detail="Report not ready for this analysis"
-        )
+        raise HTTPException(status_code=409, detail="Report not ready for this analysis")
     pdf_bytes = await container.pdf_renderer.render(analysis.report, analysis)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="report-{aid.value.hex}.pdf"'
-        },
+        headers={"Content-Disposition": f'inline; filename="report-{aid.value.hex}.pdf"'},
     )
 
 

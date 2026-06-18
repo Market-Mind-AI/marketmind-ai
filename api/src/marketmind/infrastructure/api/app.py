@@ -88,15 +88,11 @@ def _register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(status_code=422, content={"detail": str(exc)})
 
     @app.exception_handler(InvalidStateTransition)
-    async def _bad_transition(
-        request: Request, exc: InvalidStateTransition
-    ) -> JSONResponse:
+    async def _bad_transition(request: Request, exc: InvalidStateTransition) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     @app.exception_handler(AnalysisPipelineError)
-    async def _pipeline_error(
-        request: Request, exc: AnalysisPipelineError
-    ) -> JSONResponse:
+    async def _pipeline_error(request: Request, exc: AnalysisPipelineError) -> JSONResponse:
         return JSONResponse(
             status_code=502,
             content={

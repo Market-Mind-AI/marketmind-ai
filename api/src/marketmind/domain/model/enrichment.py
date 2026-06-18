@@ -7,9 +7,9 @@ was unavailable and must be imputed by the MosCalculator.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Mapping
 
 from marketmind.domain.model.scoring import MosFactor
 from marketmind.domain.shared.errors import InvalidValueObject
@@ -29,9 +29,7 @@ class Enrichment(ImmutableValue):
                 raise InvalidValueObject(
                     f"Enrichment.raw_signals key {factor!r} is not a MosFactor"
                 )
-        object.__setattr__(
-            self, "raw_signals", MappingProxyType(dict(self.raw_signals))
-        )
+        object.__setattr__(self, "raw_signals", MappingProxyType(dict(self.raw_signals)))
 
     def value_for(self, factor: MosFactor) -> float | None:
         return self.raw_signals.get(factor)

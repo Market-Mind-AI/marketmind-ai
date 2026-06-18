@@ -7,10 +7,10 @@ its own invariants so the score is always internally consistent.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import Enum
 from types import MappingProxyType
-from typing import Mapping
 
 from marketmind.domain.shared.errors import InvalidValueObject, InvalidWeights
 from marketmind.domain.shared.value_object import ImmutableValue
@@ -53,9 +53,7 @@ class MosWeights(ImmutableValue):
     def __post_init__(self) -> None:
         missing = set(MosFactor) - set(self.weights)
         if missing:
-            raise InvalidWeights(
-                f"MosWeights missing factors: {sorted(f.value for f in missing)}"
-            )
+            raise InvalidWeights(f"MosWeights missing factors: {sorted(f.value for f in missing)}")
         for factor, w in self.weights.items():
             if not isinstance(factor, MosFactor):
                 raise InvalidWeights(f"Weight key {factor!r} is not a MosFactor")
@@ -63,19 +61,15 @@ class MosWeights(ImmutableValue):
                 raise InvalidWeights(f"Weight for {factor.value} is negative: {w}")
         total = sum(self.weights.values())
         if abs(total - 1.0) > _EPSILON:
-            raise InvalidWeights(
-                f"MosWeights must sum to 1.0, got {total!r}"
-            )
+            raise InvalidWeights(f"MosWeights must sum to 1.0, got {total!r}")
         # Freeze the mapping so the value object is truly immutable.
-        object.__setattr__(
-            self, "weights", MappingProxyType(dict(self.weights))
-        )
+        object.__setattr__(self, "weights", MappingProxyType(dict(self.weights)))
 
     @staticmethod
-    def default() -> "MosWeights":
+    def default() -> MosWeights:
         return MosWeights(dict(_DEFAULT_WEIGHTS))
 
-    def normalized(self) -> "MosWeights":
+    def normalized(self) -> MosWeights:
         """Return weights rescaled to sum exactly to 1.0."""
         total = sum(self.weights.values())
         if total <= 0:
@@ -131,9 +125,7 @@ class MarketOpportunityScore(ImmutableValue):
             )
         if not self.factor_scores:
             raise InvalidValueObject("MarketOpportunityScore requires factor_scores")
-        object.__setattr__(
-            self, "contributions", MappingProxyType(dict(self.contributions))
-        )
+        object.__setattr__(self, "contributions", MappingProxyType(dict(self.contributions)))
 
     @property
     def tier(self) -> str:

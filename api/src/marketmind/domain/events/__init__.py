@@ -10,10 +10,10 @@ from marketmind.domain.events.events import (
 )
 
 __all__ = [
-    "DomainEvent",
-    "AnalysisRequested",
-    "AttributesExtracted",
-    "AnalysisScored",
     "AnalysisCompleted",
     "AnalysisFailed",
+    "AnalysisRequested",
+    "AnalysisScored",
+    "AttributesExtracted",
+    "DomainEvent",
 ]

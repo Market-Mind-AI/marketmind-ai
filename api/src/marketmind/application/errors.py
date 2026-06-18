@@ -22,6 +22,4 @@ class AnalysisPipelineError(ApplicationError):
         self.analysis_id = analysis_id
         self.step = step
         self.cause = cause
-        super().__init__(
-            f"Analysis {analysis_id} failed at step {step!r}: {cause}"
-        )
+        super().__init__(f"Analysis {analysis_id} failed at step {step!r}: {cause}")

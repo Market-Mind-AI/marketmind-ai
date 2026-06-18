@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sys
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -51,7 +51,7 @@ from marketmind.domain.services.mos_calculator import MosCalculator  # noqa: E40
 # ---------------------------------------------------------------------------
 class FakeClock:
     def __init__(self, fixed: datetime | None = None) -> None:
-        self._fixed = fixed or datetime(2024, 1, 1, tzinfo=timezone.utc)
+        self._fixed = fixed or datetime(2024, 1, 1, tzinfo=UTC)
 
     def now(self) -> datetime:
         return self._fixed
@@ -95,9 +95,7 @@ class InMemoryObjectStorage:
 
 
 class FakeAttributeExtractor:
-    async def extract(
-        self, description: str, image_refs: list[str]
-    ) -> ProductAttributes:
+    async def extract(self, description: str, image_refs: list[str]) -> ProductAttributes:
         return ProductAttributes(
             category="accessories",
             subcategory="bags",
@@ -166,13 +164,9 @@ class InMemoryVectorStore:
         self._items: list[dict] = []
 
     async def upsert(self, analysis_id, embedding, metadata: dict) -> None:
-        self._items.append(
-            {"id": str(analysis_id), "vector": embedding.vector, **metadata}
-        )
+        self._items.append({"id": str(analysis_id), "vector": embedding.vector, **metadata})
 
-    async def query_comparables(
-        self, embedding, *, k: int, filters: dict
-    ) -> list[dict]:
+    async def query_comparables(self, embedding, *, k: int, filters: dict) -> list[dict]:
         return self._items[:k]
 
 
@@ -199,9 +193,7 @@ class FakeReportGenerator:
             ),
             launch_window=LaunchWindow(label="Q4", peak_note="Holiday season peak."),
             recommendations=("Launch in the US first.",),
-            citations=(
-                Citation(source="FakeTrends", detail="Rising interest", as_of="2024-01"),
-            ),
+            citations=(Citation(source="FakeTrends", detail="Rising interest", as_of="2024-01"),),
         )
 
 
@@ -212,9 +204,7 @@ class InMemoryProgressPublisher:
         self.events: list[dict] = []
 
     async def publish(self, analysis_id, step: str, detail: str) -> None:
-        self.events.append(
-            {"analysis_id": str(analysis_id), "step": step, "detail": detail}
-        )
+        self.events.append({"analysis_id": str(analysis_id), "step": step, "detail": detail})
 
     def subscribe(self, analysis_id):  # pragma: no cover - not exercised here
         async def _gen():

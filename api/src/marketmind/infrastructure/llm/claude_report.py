@@ -108,18 +108,18 @@ class ClaudeReportGenerator(ReportGenerator):
 
     def __init__(
         self,
-        client: "anthropic.AsyncAnthropic",
+        client: anthropic.AsyncAnthropic,
         *,
         model: str = _DEFAULT_MODEL,
     ) -> None:
         self._client = client
         self._model = model
 
-    async def generate(
-        self, analysis: Analysis, comparables: list[dict]
-    ) -> OpportunityReport:
+    async def generate(self, analysis: Analysis, comparables: list[dict]) -> OpportunityReport:
         context = _build_context(analysis, comparables)
-        message = await self._client.messages.create(
+        # The inline dict messages/tool_choice are valid at runtime but don't
+        # match the SDK's strict TypedDict param overloads.
+        message = await self._client.messages.create(  # type: ignore[call-overload]
             model=self._model,
             max_tokens=2048,
             tools=[_REPORT_TOOL],
@@ -147,9 +147,7 @@ class ClaudeReportGenerator(ReportGenerator):
         for block in message.content:
             if getattr(block, "type", None) == "tool_use":
                 return dict(block.input)
-        raise ValueError(
-            "Claude did not return a record_opportunity_report tool_use block."
-        )
+        raise ValueError("Claude did not return a record_opportunity_report tool_use block.")
 
 
 def _build_context(analysis: Analysis, comparables: list[dict]) -> dict[str, Any]:
@@ -200,9 +198,7 @@ def _to_decimal(value: Any, default: str) -> Decimal:
         return Decimal(default)
 
 
-def _report_from_tool_input(
-    data: dict[str, Any], analysis: Analysis
-) -> OpportunityReport:
+def _report_from_tool_input(data: dict[str, Any], analysis: Analysis) -> OpportunityReport:
     """Map the tool-use payload into the domain VO with safe fallbacks."""
     markets = tuple(
         MarketRecommendation(
@@ -222,9 +218,7 @@ def _report_from_tool_input(
     if high < low:
         low, high = high, low
     currency = str(pb.get("currency", "USD"))[:3].upper() or "USD"
-    price_band = PriceBand(
-        low=low, high=high, currency=currency, note=str(pb.get("note", ""))
-    )
+    price_band = PriceBand(low=low, high=high, currency=currency, note=str(pb.get("note", "")))
 
     lw = data.get("launch_window", {})
     launch_window = LaunchWindow(

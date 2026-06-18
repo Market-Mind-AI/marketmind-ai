@@ -8,6 +8,7 @@ Creates the pgvector extension, the ``analysis`` aggregate table, the
 ``analyzed_product`` vector-search projection (pgvector embedding, JSONB
 metadata, generated tsvector), and the HNSW (cosine) + GIN (full-text) indexes.
 """
+
 from __future__ import annotations
 
 from collections.abc import Sequence

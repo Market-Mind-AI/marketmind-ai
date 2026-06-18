@@ -12,7 +12,7 @@ A distributed deployment would back this with Redis pub/sub or similar.
 from __future__ import annotations
 
 import asyncio
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 
 from marketmind.application.ports.ports import ProgressPublisher
 from marketmind.domain.model.identifiers import AnalysisId
@@ -38,9 +38,7 @@ class InMemoryProgressPublisher(ProgressPublisher):
             self._queues[key] = queue
         return queue
 
-    async def publish(
-        self, analysis_id: AnalysisId, step: str, detail: str
-    ) -> None:
+    async def publish(self, analysis_id: AnalysisId, step: str, detail: str) -> None:
         queue = self._queue_for(analysis_id)
         await queue.put({"analysis_id": str(analysis_id), "step": step, "detail": detail})
         if step in _TERMINAL_STEPS:

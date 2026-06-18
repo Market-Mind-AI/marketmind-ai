@@ -19,12 +19,10 @@ from marketmind.infrastructure.pdf.html_renderer import render_report_html
 class WeasyPrintPdfRenderer(PdfRenderer):
     """Renders the report to PDF bytes using WeasyPrint."""
 
-    def __init__(self) -> None:  # noqa: D401 - trivial
+    def __init__(self) -> None:
         pass
 
-    async def render(
-        self, report: OpportunityReport, analysis: Analysis
-    ) -> bytes:
+    async def render(self, report: OpportunityReport, analysis: Analysis) -> bytes:
         document_html = render_report_html(report, analysis)
         return await asyncio.to_thread(self._to_pdf, document_html)
 

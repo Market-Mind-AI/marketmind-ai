@@ -17,9 +17,7 @@ class InvalidStateTransition(DomainError):
     def __init__(self, current: str, attempted: str) -> None:
         self.current = current
         self.attempted = attempted
-        super().__init__(
-            f"Illegal status transition: {current!r} -> {attempted!r}"
-        )
+        super().__init__(f"Illegal status transition: {current!r} -> {attempted!r}")
 
 
 class InvalidWeights(DomainError):

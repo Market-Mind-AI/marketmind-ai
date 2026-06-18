@@ -78,9 +78,8 @@ def _full_module_targets(path: Path) -> set[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 targets.add(alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                targets.add(node.module)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            targets.add(node.module)
     return targets
 
 
@@ -111,20 +110,20 @@ def test_domain_imports_stdlib_and_domain_only(path: Path) -> None:
 
     # No application / infrastructure dependencies.
     for target in targets:
-        assert not target.startswith("marketmind.application"), (
-            f"{path} imports application: {target}"
-        )
-        assert not target.startswith("marketmind.infrastructure"), (
-            f"{path} imports infrastructure: {target}"
-        )
+        assert not target.startswith(
+            "marketmind.application"
+        ), f"{path} imports application: {target}"
+        assert not target.startswith(
+            "marketmind.infrastructure"
+        ), f"{path} imports infrastructure: {target}"
 
     # No third-party imports at all (domain is stdlib-only).
     for root in roots:
         if root == "marketmind":
             continue
-        assert root in _STDLIB, (
-            f"{path} imports non-stdlib module {root!r}; domain must be stdlib-only"
-        )
+        assert (
+            root in _STDLIB
+        ), f"{path} imports non-stdlib module {root!r}; domain must be stdlib-only"
 
 
 @pytest.mark.parametrize("path", _python_files(_APPLICATION), ids=lambda p: p.name)
@@ -134,9 +133,9 @@ def test_application_imports_domain_and_stdlib_only(path: Path) -> None:
 
     # No infrastructure dependency.
     for target in targets:
-        assert not target.startswith("marketmind.infrastructure"), (
-            f"{path} imports infrastructure: {target}"
-        )
+        assert not target.startswith(
+            "marketmind.infrastructure"
+        ), f"{path} imports infrastructure: {target}"
 
     # No forbidden third-party frameworks.
     for root in roots:
@@ -145,6 +144,6 @@ def test_application_imports_domain_and_stdlib_only(path: Path) -> None:
             "application must be framework-free"
         )
         # Application is also expected to be stdlib + domain only.
-        assert _is_allowed_root(root, allow_application=False), (
-            f"{path} imports unexpected module {root!r}"
-        )
+        assert _is_allowed_root(
+            root, allow_application=False
+        ), f"{path} imports unexpected module {root!r}"

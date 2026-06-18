@@ -50,6 +50,5 @@ class ProductAttributes:
                 raise InvalidValueObject(f"ProductAttributes.{name} must be a tuple")
         if not 0.0 <= self.confidence <= 1.0:
             raise InvalidValueObject(
-                "ProductAttributes.confidence must be in [0, 1], "
-                f"got {self.confidence!r}"
+                "ProductAttributes.confidence must be in [0, 1], " f"got {self.confidence!r}"
             )

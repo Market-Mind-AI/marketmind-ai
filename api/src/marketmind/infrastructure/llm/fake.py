@@ -30,54 +30,99 @@ from marketmind.domain.model.report import (
 
 # Ordered keyword → (category, subcategory, default materials, style) heuristics.
 _CATEGORY_RULES: tuple[tuple[tuple[str, ...], str, str, tuple[str, ...], str], ...] = (
-    (("sneaker", "shoe", "boot", "footwear"), "Footwear", "Casual Shoes",
-     ("textile", "rubber"), "casual"),
-    (("bag", "backpack", "purse", "tote"), "Bags & Luggage", "Backpacks",
-     ("nylon", "polyester"), "functional"),
-    (("watch", "smartwatch"), "Watches", "Smartwatches",
-     ("aluminium", "glass"), "modern"),
-    (("jacket", "coat", "hoodie", "sweater"), "Apparel", "Outerwear",
-     ("cotton", "polyester"), "streetwear"),
-    (("lamp", "chair", "table", "sofa", "desk"), "Home & Furniture", "Furniture",
-     ("wood", "metal"), "minimalist"),
-    (("bottle", "mug", "tumbler", "flask"), "Kitchen & Dining", "Drinkware",
-     ("stainless steel",), "utilitarian"),
-    (("headphone", "earbud", "speaker"), "Electronics", "Audio",
-     ("plastic", "silicone"), "modern"),
-    (("toy", "game", "puzzle"), "Toys & Games", "Toys",
-     ("plastic",), "playful"),
+    (
+        ("sneaker", "shoe", "boot", "footwear"),
+        "Footwear",
+        "Casual Shoes",
+        ("textile", "rubber"),
+        "casual",
+    ),
+    (
+        ("bag", "backpack", "purse", "tote"),
+        "Bags & Luggage",
+        "Backpacks",
+        ("nylon", "polyester"),
+        "functional",
+    ),
+    (("watch", "smartwatch"), "Watches", "Smartwatches", ("aluminium", "glass"), "modern"),
+    (
+        ("jacket", "coat", "hoodie", "sweater"),
+        "Apparel",
+        "Outerwear",
+        ("cotton", "polyester"),
+        "streetwear",
+    ),
+    (
+        ("lamp", "chair", "table", "sofa", "desk"),
+        "Home & Furniture",
+        "Furniture",
+        ("wood", "metal"),
+        "minimalist",
+    ),
+    (
+        ("bottle", "mug", "tumbler", "flask"),
+        "Kitchen & Dining",
+        "Drinkware",
+        ("stainless steel",),
+        "utilitarian",
+    ),
+    (("headphone", "earbud", "speaker"), "Electronics", "Audio", ("plastic", "silicone"), "modern"),
+    (("toy", "game", "puzzle"), "Toys & Games", "Toys", ("plastic",), "playful"),
 )
 
 _COLOR_KEYWORDS = (
-    "black", "white", "red", "blue", "green", "yellow", "pink",
-    "grey", "gray", "brown", "beige", "navy", "silver", "gold",
+    "black",
+    "white",
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "pink",
+    "grey",
+    "gray",
+    "brown",
+    "beige",
+    "navy",
+    "silver",
+    "gold",
 )
 
 _MATERIAL_KEYWORDS = (
-    "leather", "cotton", "wool", "silk", "linen", "denim", "wood",
-    "bamboo", "steel", "aluminium", "aluminum", "glass", "ceramic",
-    "plastic", "rubber", "nylon", "polyester", "silicone",
+    "leather",
+    "cotton",
+    "wool",
+    "silk",
+    "linen",
+    "denim",
+    "wood",
+    "bamboo",
+    "steel",
+    "aluminium",
+    "aluminum",
+    "glass",
+    "ceramic",
+    "plastic",
+    "rubber",
+    "nylon",
+    "polyester",
+    "silicone",
 )
 
 
 class FakeAttributeExtractor(ProductAttributeExtractor):
     """Derives plausible structured attributes from description keywords."""
 
-    def __init__(self) -> None:  # noqa: D401 - trivial
+    def __init__(self) -> None:
         pass
 
-    async def extract(
-        self, description: str, image_refs: list[str]
-    ) -> ProductAttributes:
+    async def extract(self, description: str, image_refs: list[str]) -> ProductAttributes:
         text = (description or "").lower()
         words = [w.strip(".,!?;:\"'()[]") for w in text.split()]
 
-        category, subcategory, default_materials, style = (
-            "General Merchandise",
-            "Miscellaneous",
-            ("composite",),
-            "contemporary",
-        )
+        category: str = "General Merchandise"
+        subcategory: str = "Miscellaneous"
+        default_materials: tuple[str, ...] = ("composite",)
+        style: str = "contemporary"
         for keywords, cat, sub, mats, sty in _CATEGORY_RULES:
             if any(k in text for k in keywords):
                 category, subcategory, default_materials, style = cat, sub, mats, sty
@@ -88,8 +133,24 @@ class FakeAttributeExtractor(ProductAttributeExtractor):
 
         # Key features: a few salient descriptive words (deduped, capped).
         stop = {
-            "the", "a", "an", "and", "or", "with", "for", "this", "that",
-            "is", "are", "of", "to", "in", "on", "it", "very", "made",
+            "the",
+            "a",
+            "an",
+            "and",
+            "or",
+            "with",
+            "for",
+            "this",
+            "that",
+            "is",
+            "are",
+            "of",
+            "to",
+            "in",
+            "on",
+            "it",
+            "very",
+            "made",
         }
         seen: list[str] = []
         for w in words:
@@ -149,18 +210,15 @@ _PRICE_BANDS: dict[str, tuple[str, str]] = {
 class TemplateReportGenerator(ReportGenerator):
     """Builds a coherent OpportunityReport from the score + markets, no LLM."""
 
-    def __init__(self) -> None:  # noqa: D401 - trivial
+    def __init__(self) -> None:
         pass
 
-    async def generate(
-        self, analysis: Analysis, comparables: list[dict]
-    ) -> OpportunityReport:
+    async def generate(self, analysis: Analysis, comparables: list[dict]) -> OpportunityReport:
         score = analysis.score
         attributes = analysis.attributes
         if score is None or attributes is None:
             raise ValueError(
-                "TemplateReportGenerator requires a scored analysis "
-                "with extracted attributes."
+                "TemplateReportGenerator requires a scored analysis " "with extracted attributes."
             )
 
         tier = score.tier
@@ -215,11 +273,15 @@ class TemplateReportGenerator(ReportGenerator):
                 peak_note="Low seasonality; demand is broadly stable year-round.",
             )
 
+        keyword = (
+            attributes.suggested_keywords[0]
+            if attributes.suggested_keywords
+            else attributes.category
+        )
         recommendations = (
-            f"Lead with the {top_market.country_name} market and the "
-            f"'{attributes.suggested_keywords[0] if attributes.suggested_keywords else attributes.category}' "
-            "keyword set.",
-            f"Price within {price_band.currency} {price_band.low}-{price_band.high} to match the band.",
+            f"Lead with the {top_market.country_name} market and the " f"'{keyword}' keyword set.",
+            f"Price within {price_band.currency} {price_band.low}-{price_band.high} "
+            "to match the band.",
             f"Time the launch to the {launch_window.label} window.",
         )
 

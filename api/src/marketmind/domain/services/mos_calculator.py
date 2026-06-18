@@ -26,8 +26,8 @@ unit-testable.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
 
 from marketmind.domain.model.scoring import (
     FactorScore,
@@ -98,10 +98,7 @@ class MosCalculator:
                 # Winsorize: clamp into the reference range.
                 clamped = min(max(effective_raw, lo), hi)
                 span = hi - lo
-                if span <= 0:
-                    normalized = NEUTRAL_SCORE
-                else:
-                    normalized = (clamped - lo) / span * 100.0
+                normalized = NEUTRAL_SCORE if span <= 0 else (clamped - lo) / span * 100.0
 
             # Guard against tiny floating point excursions outside [0, 100].
             normalized = min(max(normalized, 0.0), 100.0)

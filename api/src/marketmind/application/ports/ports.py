@@ -7,8 +7,9 @@ only domain types (and stdlib). Async where the operation does I/O.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from datetime import datetime
-from typing import AsyncIterator, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from marketmind.domain.model.analysis import Analysis
 from marketmind.domain.model.embedding import ProductEmbedding
@@ -31,9 +32,7 @@ class AnalysisRepository(Protocol):
 class ObjectStorage(Protocol):
     """Blob storage for uploaded product images. Returns an opaque ref/url."""
 
-    async def store(
-        self, filename: str, data: bytes, content_type: str
-    ) -> str: ...
+    async def store(self, filename: str, data: bytes, content_type: str) -> str: ...
 
     async def load(self, ref: str) -> bytes: ...
 
@@ -42,9 +41,7 @@ class ObjectStorage(Protocol):
 class ProductAttributeExtractor(Protocol):
     """Vision-LLM extraction of structured attributes from images + text."""
 
-    async def extract(
-        self, description: str, image_refs: list[str]
-    ) -> ProductAttributes: ...
+    async def extract(self, description: str, image_refs: list[str]) -> ProductAttributes: ...
 
 
 @runtime_checkable
@@ -92,7 +89,7 @@ class VectorStore(Protocol):
         self,
         analysis_id: AnalysisId,
         embedding: ProductEmbedding,
-        metadata: dict,
+        metadata: dict[str, object],
     ) -> None: ...
 
     async def query_comparables(
@@ -100,8 +97,8 @@ class VectorStore(Protocol):
         embedding: ProductEmbedding,
         *,
         k: int,
-        filters: dict,
-    ) -> list[dict]: ...
+        filters: dict[str, object],
+    ) -> list[dict[str, object]]: ...
 
 
 @runtime_checkable
@@ -109,7 +106,7 @@ class ReportGenerator(Protocol):
     """Generates the explainable OpportunityReport (report-generation LLM)."""
 
     async def generate(
-        self, analysis: Analysis, comparables: list[dict]
+        self, analysis: Analysis, comparables: list[dict[str, object]]
     ) -> OpportunityReport: ...
 
 
@@ -117,20 +114,16 @@ class ReportGenerator(Protocol):
 class PdfRenderer(Protocol):
     """Renders an OpportunityReport to PDF bytes."""
 
-    async def render(
-        self, report: OpportunityReport, analysis: Analysis
-    ) -> bytes: ...
+    async def render(self, report: OpportunityReport, analysis: Analysis) -> bytes: ...
 
 
 @runtime_checkable
 class ProgressPublisher(Protocol):
     """Publishes pipeline progress and exposes an SSE subscription stream."""
 
-    async def publish(
-        self, analysis_id: AnalysisId, step: str, detail: str
-    ) -> None: ...
+    async def publish(self, analysis_id: AnalysisId, step: str, detail: str) -> None: ...
 
-    def subscribe(self, analysis_id: AnalysisId) -> AsyncIterator[dict]: ...
+    def subscribe(self, analysis_id: AnalysisId) -> AsyncIterator[dict[str, object]]: ...
 
 
 @runtime_checkable

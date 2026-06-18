@@ -47,12 +47,8 @@ async def test_pipeline_completes_with_score_and_report(
     assert analysis.attributes is not None
 
 
-async def test_progress_published_for_every_step(
-    analyze_use_case, progress
-) -> None:
-    await analyze_use_case.handle(
-        AnalyzeProductCommand(description="A ceramic mug", images=[])
-    )
+async def test_progress_published_for_every_step(analyze_use_case, progress) -> None:
+    await analyze_use_case.handle(AnalyzeProductCommand(description="A ceramic mug", images=[]))
     steps = [e["step"] for e in progress.events]
     assert steps == _EXPECTED_STEPS
 
@@ -68,23 +64,17 @@ async def test_uploaded_images_become_refs(analyze_use_case, repository) -> None
     assert len(analysis.product_input.image_refs) == 1
 
 
-async def test_score_uses_injected_signal_values(
-    analyze_use_case, repository
-) -> None:
+async def test_score_uses_injected_signal_values(analyze_use_case, repository) -> None:
     # signal_providers fixture: TREND 80 -> normalized 80; GROWTH 5 -> 50;
     # GEOGRAPHIC 60; SEASONALITY 70; CONSUMER 50.
     # total = .30*80 + .25*50 + .20*60 + .15*70 + .10*50 = 64.0
-    analysis_id = await analyze_use_case.handle(
-        AnalyzeProductCommand(description="x", images=[])
-    )
+    analysis_id = await analyze_use_case.handle(AnalyzeProductCommand(description="x", images=[]))
     analysis = await repository.get(analysis_id)
     assert analysis is not None
     assert analysis.score.total == pytest.approx(64.0)
 
 
-async def test_get_use_case_returns_view(
-    analyze_use_case, get_use_case
-) -> None:
+async def test_get_use_case_returns_view(analyze_use_case, get_use_case) -> None:
     analysis_id = await analyze_use_case.handle(
         AnalyzeProductCommand(description="A wooden chair", images=[])
     )
@@ -105,10 +95,9 @@ async def test_provider_failure_imputes_without_aborting(
     repository, progress, signal_providers
 ) -> None:
     """A failing provider degrades to an imputed factor; pipeline still completes."""
+    import conftest  # in-test fakes
     from marketmind.application.use_cases.analyze_product import AnalyzeProductUseCase
     from marketmind.domain.services.mos_calculator import MosCalculator
-
-    import conftest  # in-test fakes
 
     class _ExplodingTrendProvider:
         @property
@@ -142,19 +131,16 @@ async def test_provider_failure_imputes_without_aborting(
     )
     analysis = await repository.get(analysis_id)
     assert analysis.status is AnalysisStatus.COMPLETED
-    trend_fs = next(
-        fs for fs in analysis.score.factor_scores if fs.factor is MosFactor.TREND
-    )
+    trend_fs = next(fs for fs in analysis.score.factor_scores if fs.factor is MosFactor.TREND)
     assert trend_fs.imputed is True
 
 
 async def test_extractor_failure_marks_failed_and_raises(
     repository, progress, signal_providers
 ) -> None:
+    import conftest
     from marketmind.application.use_cases.analyze_product import AnalyzeProductUseCase
     from marketmind.domain.services.mos_calculator import MosCalculator
-
-    import conftest
 
     class _BrokenExtractor:
         async def extract(self, description, image_refs):

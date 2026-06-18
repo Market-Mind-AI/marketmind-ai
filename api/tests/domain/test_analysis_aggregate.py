@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -24,7 +24,7 @@ from marketmind.domain.model.status import AnalysisStatus
 from marketmind.domain.services.mos_calculator import MosCalculator
 from marketmind.domain.shared.errors import InvalidStateTransition
 
-_NOW = datetime(2024, 1, 1, tzinfo=timezone.utc)
+_NOW = datetime(2024, 1, 1, tzinfo=UTC)
 
 
 def _new_analysis() -> Analysis:

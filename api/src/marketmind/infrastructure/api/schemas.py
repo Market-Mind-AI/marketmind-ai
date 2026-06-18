@@ -42,7 +42,7 @@ class ScoreResponse(BaseModel):
     contributions: list[FactorContributionResponse]
 
     @classmethod
-    def from_view(cls, view: ScoreView) -> "ScoreResponse":
+    def from_view(cls, view: ScoreView) -> ScoreResponse:
         return cls(
             total=view.total,
             tier=view.tier,
@@ -87,7 +87,7 @@ class ReportResponse(BaseModel):
     citations: list[CitationResponse]
 
     @classmethod
-    def from_view(cls, view: ReportView) -> "ReportResponse":
+    def from_view(cls, view: ReportView) -> ReportResponse:
         return cls(
             verdict=view.verdict,
             summary=view.summary,
@@ -128,7 +128,7 @@ class AnalysisResponse(BaseModel):
     failure_reason: str | None
 
     @classmethod
-    def from_view(cls, view: AnalysisView) -> "AnalysisResponse":
+    def from_view(cls, view: AnalysisView) -> AnalysisResponse:
         return cls(
             id=view.id,
             status=view.status,
@@ -143,12 +143,12 @@ class AnalysisResponse(BaseModel):
 
 
 __all__ = [
-    "HealthResponse",
-    "AnalyzeResponse",
     "AnalysisResponse",
-    "ScoreResponse",
+    "AnalyzeResponse",
+    "CitationResponse",
     "FactorContributionResponse",
+    "HealthResponse",
     "MarketResponse",
     "ReportResponse",
-    "CitationResponse",
+    "ScoreResponse",
 ]

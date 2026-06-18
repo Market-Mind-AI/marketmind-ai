@@ -79,20 +79,19 @@ class PgVectorStore(VectorStore):
                 search_text = EXCLUDED.search_text
             """
         ).bindparams(bindparam("metadata", type_=_JSONB()))
-        async with self._session_factory() as session:
-            async with session.begin():
-                await session.execute(
-                    stmt,
-                    {
-                        "analysis_id": analysis_id.value,
-                        "embedding": vector_literal,
-                        "model": embedding.model,
-                        "version": embedding.version,
-                        "mos_score": metadata.get("mos_score"),
-                        "metadata": metadata,
-                        "search_text": search_text,
-                    },
-                )
+        async with self._session_factory() as session, session.begin():
+            await session.execute(
+                stmt,
+                {
+                    "analysis_id": analysis_id.value,
+                    "embedding": vector_literal,
+                    "model": embedding.model,
+                    "version": embedding.version,
+                    "mos_score": metadata.get("mos_score"),
+                    "metadata": metadata,
+                    "search_text": search_text,
+                },
+            )
 
     async def query_comparables(
         self,
@@ -133,9 +132,7 @@ class PgVectorStore(VectorStore):
 
         async with self._session_factory() as session:
             # Per-query ANN recall tuning.
-            await session.execute(
-                text("SET LOCAL hnsw.ef_search = :ef"), {"ef": self._ef_search}
-            )
+            await session.execute(text("SET LOCAL hnsw.ef_search = :ef"), {"ef": self._ef_search})
             result = await session.execute(query_sql, params)
             rows = result.mappings().all()
 

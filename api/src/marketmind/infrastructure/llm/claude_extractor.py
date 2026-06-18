@@ -97,7 +97,7 @@ class ClaudeAttributeExtractor(ProductAttributeExtractor):
 
     def __init__(
         self,
-        client: "anthropic.AsyncAnthropic",
+        client: anthropic.AsyncAnthropic,
         storage: ObjectStorage,
         *,
         model: str = _DEFAULT_MODEL,
@@ -106,14 +106,12 @@ class ClaudeAttributeExtractor(ProductAttributeExtractor):
         self._storage = storage
         self._model = model
 
-    async def extract(
-        self, description: str, image_refs: list[str]
-    ) -> ProductAttributes:
+    async def extract(self, description: str, image_refs: list[str]) -> ProductAttributes:
         content: list[dict[str, Any]] = []
         for ref in image_refs:
             try:
                 raw = await self._storage.load(ref)
-            except Exception:  # noqa: BLE001 - skip unreadable images, keep going
+            except Exception:
                 continue
             content.append(
                 {
@@ -137,7 +135,9 @@ class ClaudeAttributeExtractor(ProductAttributeExtractor):
             }
         )
 
-        message = await self._client.messages.create(
+        # The inline dict messages/tool_choice are valid at runtime but don't
+        # match the SDK's strict TypedDict param overloads.
+        message = await self._client.messages.create(  # type: ignore[call-overload]
             model=self._model,
             max_tokens=1024,
             tools=[_EXTRACTION_TOOL],
@@ -153,9 +153,7 @@ class ClaudeAttributeExtractor(ProductAttributeExtractor):
         for block in message.content:
             if getattr(block, "type", None) == "tool_use":
                 return dict(block.input)
-        raise ValueError(
-            "Claude did not return a record_product_attributes tool_use block."
-        )
+        raise ValueError("Claude did not return a record_product_attributes tool_use block.")
 
 
 def _attributes_from_tool_input(data: dict[str, Any]) -> ProductAttributes:

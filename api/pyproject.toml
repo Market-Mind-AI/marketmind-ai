@@ -77,7 +77,9 @@ select = [
   "RUF",  # ruff-specific
 ]
 ignore = [
-  "B008",  # function call in argument defaults (FastAPI Depends pattern)
+  "B008",   # function call in argument defaults (FastAPI Depends pattern)
+  "N818",   # domain/application exceptions use DDD ubiquitous-language names (InvalidStateTransition, AnalysisNotFound), not an -Error suffix
+  "RUF001", # user-facing strings/HTML intentionally use typographic en-dashes "–"
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -111,13 +113,37 @@ show_error_codes = true
 pretty = true
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "cohere.*"]
+module = ["pgvector.*", "cohere.*", "weasyprint.*"]
 ignore_missing_imports = true
 
+# The infrastructure (framework adapter) layer is not held to strict
+# untyped-def rules: it wires up FastAPI/SQLAlchemy/SDK callables (whose own
+# stubs are loosely typed) where exhaustive annotation buys little. Domain and
+# application stay fully strict.
 [[tool.mypy.overrides]]
-module = "tests.*"
+module = ["marketmind.infrastructure.*"]
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
+disallow_any_generics = false
+disallow_untyped_calls = false
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_any_generics = false
+disallow_untyped_calls = false
+warn_return_any = false
+# Tests wire structural fakes through invariant containers and exercise
+# post-mutation aggregate state mypy can't narrow — accepted in the test layer.
+disable_error_code = ["arg-type", "comparison-overlap"]
+
+# pytest puts the test root on sys.path, so `import conftest` resolves at
+# runtime; mypy doesn't model that.
+[[tool.mypy.overrides]]
+module = ["conftest"]
+ignore_missing_imports = true
 
 # ---------------------------------------------------------------------------
 # pytest

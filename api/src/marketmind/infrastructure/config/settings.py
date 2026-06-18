@@ -34,9 +34,7 @@ class Settings(BaseSettings):
 
     # --- provider / persistence selection -------------------------------
     provider_mode: Literal["fake", "real"] = "fake"
-    database_url: str = (
-        "postgresql+asyncpg://marketmind:marketmind@localhost:5432/marketmind"
-    )
+    database_url: str = "postgresql+asyncpg://marketmind:marketmind@localhost:5432/marketmind"
     use_in_memory_persistence: bool = True
 
     # --- LLM / embedding credentials & models ---------------------------

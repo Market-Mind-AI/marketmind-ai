@@ -38,11 +38,11 @@ def _normalized(score, factor: MosFactor) -> float:
 
 def test_min_max_normalization_per_factor() -> None:
     raw = {
-        MosFactor.TREND: 80.0,        # (0,100)  -> 80
-        MosFactor.GROWTH: 5.0,        # (-10,20) -> (5+10)/30*100 = 50
-        MosFactor.GEOGRAPHIC: 60.0,   # -> 60
+        MosFactor.TREND: 80.0,  # (0,100)  -> 80
+        MosFactor.GROWTH: 5.0,  # (-10,20) -> (5+10)/30*100 = 50
+        MosFactor.GEOGRAPHIC: 60.0,  # -> 60
         MosFactor.SEASONALITY: 70.0,  # -> 70
-        MosFactor.CONSUMER: 50.0,     # -> 50
+        MosFactor.CONSUMER: 50.0,  # -> 50
     }
     score = CALC.score(raw, MosWeights.default())
 
@@ -85,8 +85,8 @@ def test_contributions_sum_to_total() -> None:
 
 def test_winsorize_clamps_above_and_below_range() -> None:
     raw = {
-        MosFactor.TREND: 250.0,    # clamp to 100 -> 100
-        MosFactor.GROWTH: -50.0,   # clamp to -10 -> 0
+        MosFactor.TREND: 250.0,  # clamp to 100 -> 100
+        MosFactor.GROWTH: -50.0,  # clamp to -10 -> 0
         MosFactor.GEOGRAPHIC: 50.0,
         MosFactor.SEASONALITY: 50.0,
         MosFactor.CONSUMER: 50.0,
@@ -184,7 +184,7 @@ def test_normalized_is_idempotent_for_valid_weights() -> None:
 @pytest.mark.parametrize(
     "trend_value, expected_tier",
     [
-        (100.0, "strong"),    # total dominated high -> >=70
+        (100.0, "strong"),  # total dominated high -> >=70
         (50.0, "moderate"),
         (0.0, "weak"),
     ],
@@ -193,10 +193,18 @@ def test_tier_thresholds(trend_value: float, expected_tier: str) -> None:
     # Build a score whose total lands in each band by varying one big-weight factor.
     raw = {
         MosFactor.TREND: trend_value,
-        MosFactor.GROWTH: 20.0 if expected_tier == "strong" else (5.0 if expected_tier == "moderate" else -10.0),
-        MosFactor.GEOGRAPHIC: 100.0 if expected_tier == "strong" else (50.0 if expected_tier == "moderate" else 0.0),
-        MosFactor.SEASONALITY: 100.0 if expected_tier == "strong" else (50.0 if expected_tier == "moderate" else 0.0),
-        MosFactor.CONSUMER: 100.0 if expected_tier == "strong" else (50.0 if expected_tier == "moderate" else 0.0),
+        MosFactor.GROWTH: 20.0
+        if expected_tier == "strong"
+        else (5.0 if expected_tier == "moderate" else -10.0),
+        MosFactor.GEOGRAPHIC: 100.0
+        if expected_tier == "strong"
+        else (50.0 if expected_tier == "moderate" else 0.0),
+        MosFactor.SEASONALITY: 100.0
+        if expected_tier == "strong"
+        else (50.0 if expected_tier == "moderate" else 0.0),
+        MosFactor.CONSUMER: 100.0
+        if expected_tier == "strong"
+        else (50.0 if expected_tier == "moderate" else 0.0),
     }
     score = CALC.score(raw, MosWeights.default())
     assert score.tier == expected_tier

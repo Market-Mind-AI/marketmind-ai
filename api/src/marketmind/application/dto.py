@@ -86,7 +86,7 @@ class AnalysisView:
     failure_reason: str | None
 
     @staticmethod
-    def from_domain(analysis: Analysis) -> "AnalysisView":
+    def from_domain(analysis: Analysis) -> AnalysisView:
         """Map a domain Analysis into a flat, serializable view."""
         score_view: ScoreView | None = None
         if analysis.score is not None:
@@ -150,13 +150,13 @@ class AnalysisView:
 
 
 __all__ = [
-    "UploadedImage",
-    "AnalyzeProductCommand",
-    "FactorContributionView",
-    "ScoreView",
-    "MarketView",
-    "CitationView",
-    "ReportView",
     "AnalysisView",
+    "AnalyzeProductCommand",
+    "CitationView",
+    "FactorContributionView",
+    "MarketView",
     "MosFactor",
+    "ReportView",
+    "ScoreView",
+    "UploadedImage",
 ]

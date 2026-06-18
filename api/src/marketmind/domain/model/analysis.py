@@ -59,7 +59,7 @@ class Analysis:
         analysis_id: AnalysisId,
         product_input: ProductInput,
         created_at: datetime,
-    ) -> "Analysis":
+    ) -> Analysis:
         """Factory for a freshly requested (PENDING) analysis."""
         return Analysis(
             id=analysis_id,

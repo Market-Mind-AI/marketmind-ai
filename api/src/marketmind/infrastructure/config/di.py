@@ -19,7 +19,7 @@ Anthropic/Cohere SDKs are never imported in fake mode).
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from marketmind.application.ports.ports import (
     AnalysisRepository,
@@ -46,7 +46,7 @@ class SystemClock:
     """Real wall-clock adapter for the :class:`Clock` port (UTC, tz-aware)."""
 
     def now(self) -> datetime:
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
 
 class UuidGenerator:
@@ -81,9 +81,7 @@ class Container:
         self.extractor: ProductAttributeExtractor = self._build_extractor()
         self.report_generator: ReportGenerator = self._build_report_generator()
         self.embedding_model: EmbeddingModel = self._build_embedding_model()
-        self.signal_providers: list[MarketSignalProvider] = (
-            self._build_signal_providers()
-        )
+        self.signal_providers: list[MarketSignalProvider] = self._build_signal_providers()
         self.geo_ranker: GeoMarketRanker = self._build_geo_ranker()
 
     # ------------------------------------------------------------------
@@ -132,13 +130,13 @@ class Container:
 
     def _build_repository(self) -> AnalysisRepository:
         if self.is_fake or self.settings.use_in_memory_persistence:
-            from marketmind.infrastructure.persistence.in_memory_analysis_repository import (  # noqa: E501
+            from marketmind.infrastructure.persistence.in_memory_analysis_repository import (
                 InMemoryAnalysisRepository,
             )
 
             return InMemoryAnalysisRepository()
 
-        from marketmind.infrastructure.persistence.sqlalchemy_analysis_repository import (  # noqa: E501
+        from marketmind.infrastructure.persistence.sqlalchemy_analysis_repository import (
             SqlAlchemyAnalysisRepository,
         )
 
@@ -259,9 +257,7 @@ class Container:
                 password=self.settings.dataforseo_password or "",
             ),
             WorldBankMacroProvider(client),
-            EbayMarketplaceProvider(
-                client, app_id=self.settings.ebay_app_id or ""
-            ),
+            EbayMarketplaceProvider(client, app_id=self.settings.ebay_app_id or ""),
         ]
 
     def _build_geo_ranker(self) -> GeoMarketRanker:
@@ -279,7 +275,7 @@ class Container:
     # ------------------------------------------------------------------
     # Lazily-built real-mode clients (never imported in fake mode).
     # ------------------------------------------------------------------
-    def _session_factory(self):  # type: ignore[no-untyped-def]
+    def _session_factory(self):
         from sqlalchemy.ext.asyncio import (
             async_sessionmaker,
             create_async_engine,
@@ -287,12 +283,10 @@ class Container:
 
         if not hasattr(self, "_cached_session_factory"):
             engine = create_async_engine(self.settings.database_url)
-            self._cached_session_factory = async_sessionmaker(
-                engine, expire_on_commit=False
-            )
+            self._cached_session_factory = async_sessionmaker(engine, expire_on_commit=False)
         return self._cached_session_factory
 
-    def _anthropic_client(self):  # type: ignore[no-untyped-def]
+    def _anthropic_client(self):
         import anthropic
 
         if not hasattr(self, "_cached_anthropic"):
@@ -301,16 +295,14 @@ class Container:
             )
         return self._cached_anthropic
 
-    def _cohere_client(self):  # type: ignore[no-untyped-def]
+    def _cohere_client(self):
         import cohere
 
         if not hasattr(self, "_cached_cohere"):
-            self._cached_cohere = cohere.AsyncClientV2(
-                api_key=self.settings.cohere_api_key
-            )
+            self._cached_cohere = cohere.AsyncClientV2(api_key=self.settings.cohere_api_key)
         return self._cached_cohere
 
-    def _httpx_client(self):  # type: ignore[no-untyped-def]
+    def _httpx_client(self):
         import httpx
 
         if not hasattr(self, "_cached_httpx"):

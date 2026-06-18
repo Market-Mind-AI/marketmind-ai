@@ -43,7 +43,7 @@ from marketmind.application.ports.ports import (
 from marketmind.domain.model.analysis import Analysis
 from marketmind.domain.model.enrichment import Enrichment
 from marketmind.domain.model.identifiers import AnalysisId
-from marketmind.domain.model.product import ProductInput
+from marketmind.domain.model.product import ProductAttributes, ProductInput
 from marketmind.domain.model.scoring import MosFactor, MosWeights
 from marketmind.domain.services.mos_calculator import MosCalculator
 
@@ -106,9 +106,7 @@ class AnalyzeProductUseCase:
             step = "extracting"
             analysis.start_extraction()
             await self._publish(analysis.id, step, "Extracting product attributes")
-            attributes = await self._extractor.extract(
-                command.description, list(image_refs)
-            )
+            attributes = await self._extractor.extract(command.description, list(image_refs))
             analysis.record_attributes(attributes)
             await self._repository.save(analysis)
 
@@ -166,7 +164,7 @@ class AnalyzeProductUseCase:
             await self._publish(analysis.id, "completed", "Analysis complete")
             return analysis.id
 
-        except Exception as exc:  # noqa: BLE001 - convert any failure to FAILED
+        except Exception as exc:
             analysis.fail(f"{step}: {exc}")
             await self._repository.save(analysis)
             await self._publish(analysis.id, "failed", str(exc))
@@ -180,19 +178,17 @@ class AnalyzeProductUseCase:
             refs.append(ref)
         return refs
 
-    async def _gather_signals(self, attributes) -> dict[MosFactor, float | None]:
+    async def _gather_signals(self, attributes: ProductAttributes) -> dict[MosFactor, float | None]:
         """Fan out over providers; a provider failure imputes None for its factor."""
 
         async def _one(provider: MarketSignalProvider) -> tuple[MosFactor, float | None]:
             try:
                 value = await provider.fetch(attributes)
                 return provider.factor, value
-            except Exception:  # noqa: BLE001 - degrade gracefully to imputation
+            except Exception:
                 return provider.factor, None
 
-        results = await asyncio.gather(
-            *(_one(p) for p in self._signal_providers)
-        )
+        results = await asyncio.gather(*(_one(p) for p in self._signal_providers))
         signals: dict[MosFactor, float | None] = {f: None for f in MosFactor}
         for factor, value in results:
             signals[factor] = value

@@ -19,13 +19,10 @@ class MarketRecommendation:
 
     def __post_init__(self) -> None:
         if not self.country_code or len(self.country_code) not in (2, 3):
-            raise InvalidValueObject(
-                "MarketRecommendation.country_code must be an ISO-2/3 code"
-            )
+            raise InvalidValueObject("MarketRecommendation.country_code must be an ISO-2/3 code")
         if not 0.0 <= self.score <= 100.0:
             raise InvalidValueObject(
-                "MarketRecommendation.score must be in [0, 100], "
-                f"got {self.score!r}"
+                "MarketRecommendation.score must be in [0, 100], " f"got {self.score!r}"
             )
 
 

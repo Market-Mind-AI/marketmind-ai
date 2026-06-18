@@ -22,9 +22,7 @@ class S3ObjectStorage(ObjectStorage):
         self._client = client
         self._bucket = bucket
 
-    async def store(
-        self, filename: str, data: bytes, content_type: str
-    ) -> str:
+    async def store(self, filename: str, data: bytes, content_type: str) -> str:
         # TODO: key = f"{uuid.uuid4().hex}-{filename}";
         #   await asyncio.to_thread(self._client.put_object, Bucket=self._bucket,
         #       Key=key, Body=data, ContentType=content_type); return the key/URL.

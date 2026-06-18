@@ -117,8 +117,7 @@ def _report_to_dict(report: OpportunityReport) -> dict:
         },
         "recommendations": list(report.recommendations),
         "citations": [
-            {"source": c.source, "detail": c.detail, "as_of": c.as_of}
-            for c in report.citations
+            {"source": c.source, "detail": c.detail, "as_of": c.as_of} for c in report.citations
         ],
     }
 
@@ -241,19 +240,11 @@ def _apply_to_model(analysis: Analysis, model: AnalysisModel) -> None:
     model.created_at = analysis.created_at
     model.description = analysis.product_input.description
     model.image_refs = list(analysis.product_input.image_refs)
-    model.attributes = (
-        _attributes_to_dict(analysis.attributes) if analysis.attributes else None
-    )
-    model.enrichment = (
-        _enrichment_to_dict(analysis.enrichment) if analysis.enrichment else None
-    )
+    model.attributes = _attributes_to_dict(analysis.attributes) if analysis.attributes else None
+    model.enrichment = _enrichment_to_dict(analysis.enrichment) if analysis.enrichment else None
     model.score = _score_to_dict(analysis.score) if analysis.score else None
-    model.markets = (
-        [_market_to_dict(m) for m in analysis.markets] if analysis.markets else None
-    )
-    model.embedding = (
-        _embedding_to_dict(analysis.embedding) if analysis.embedding else None
-    )
+    model.markets = [_market_to_dict(m) for m in analysis.markets] if analysis.markets else None
+    model.embedding = _embedding_to_dict(analysis.embedding) if analysis.embedding else None
     model.report = _report_to_dict(analysis.report) if analysis.report else None
     model.failure_reason = analysis.failure_reason
 
@@ -278,9 +269,7 @@ def _sync_product_projection(analysis: Analysis, model: AnalysisModel) -> None:
             "style": attrs.style,
             "keywords": list(attrs.suggested_keywords),
         }
-        search_parts.extend(
-            [attrs.category, attrs.subcategory, *attrs.suggested_keywords]
-        )
+        search_parts.extend([attrs.category, attrs.subcategory, *attrs.suggested_keywords])
     product = model.product
     if product is None:
         product = AnalyzedProductModel(analysis_id=analysis.id.value)
@@ -300,20 +289,17 @@ class SqlAlchemyAnalysisRepository(AnalysisRepository):
         self._session_factory = session_factory
 
     async def save(self, analysis: Analysis) -> None:
-        async with self._session_factory() as session:
-            async with session.begin():
-                model = await session.get(AnalysisModel, analysis.id.value)
-                if model is None:
-                    model = AnalysisModel(id=analysis.id.value)
-                    session.add(model)
-                _apply_to_model(analysis, model)
-                _sync_product_projection(analysis, model)
+        async with self._session_factory() as session, session.begin():
+            model = await session.get(AnalysisModel, analysis.id.value)
+            if model is None:
+                model = AnalysisModel(id=analysis.id.value)
+                session.add(model)
+            _apply_to_model(analysis, model)
+            _sync_product_projection(analysis, model)
 
     async def get(self, analysis_id: AnalysisId) -> Analysis | None:
         async with self._session_factory() as session:
-            stmt = select(AnalysisModel).where(
-                AnalysisModel.id == _as_uuid(analysis_id)
-            )
+            stmt = select(AnalysisModel).where(AnalysisModel.id == _as_uuid(analysis_id))
             result = await session.execute(stmt)
             model = result.scalar_one_or_none()
             if model is None:

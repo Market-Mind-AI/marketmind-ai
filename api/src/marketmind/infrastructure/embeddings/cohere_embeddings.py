@@ -27,7 +27,7 @@ class CohereEmbeddingModel(EmbeddingModel):
 
     def __init__(
         self,
-        client: "cohere.AsyncClientV2",
+        client: cohere.AsyncClientV2,
         *,
         model: str = _DEFAULT_MODEL,
         version: int = 1,

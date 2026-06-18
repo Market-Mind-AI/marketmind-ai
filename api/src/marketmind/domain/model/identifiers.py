@@ -19,11 +19,11 @@ class AnalysisId:
             raise InvalidValueObject("AnalysisId must wrap a uuid.UUID")
 
     @staticmethod
-    def new() -> "AnalysisId":
+    def new() -> AnalysisId:
         return AnalysisId(uuid.uuid4())
 
     @staticmethod
-    def from_string(raw: str) -> "AnalysisId":
+    def from_string(raw: str) -> AnalysisId:
         try:
             return AnalysisId(uuid.UUID(raw))
         except (ValueError, AttributeError, TypeError) as exc:

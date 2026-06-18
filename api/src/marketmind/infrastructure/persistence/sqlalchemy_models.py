@@ -42,7 +42,6 @@ from sqlalchemy import (
     Index,
     String,
     Text,
-    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import (
@@ -67,19 +66,13 @@ class AnalysisModel(Base):
 
     __tablename__ = "analysis"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True
-    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
-    created_at: Mapped[_dt.datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    created_at: Mapped[_dt.datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     # ----- ProductInput (flattened) -----
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    image_refs: Mapped[list] = mapped_column(
-        JSONB, nullable=False, default=list
-    )
+    image_refs: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
     # ----- rich value objects serialized as JSONB (nullable until produced) ---
     attributes: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
@@ -91,7 +84,7 @@ class AnalysisModel(Base):
 
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    product: Mapped["AnalyzedProductModel | None"] = relationship(
+    product: Mapped[AnalyzedProductModel | None] = relationship(
         back_populates="analysis",
         uselist=False,
         cascade="all, delete-orphan",
@@ -111,18 +104,14 @@ class AnalyzedProductModel(Base):
     )
 
     # pgvector dense embedding (cosine ANN target).
-    embedding: Mapped[list[float]] = mapped_column(
-        Vector(EMBEDDING_DIMENSIONS), nullable=False
-    )
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS), nullable=False)
     embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
     embedding_version: Mapped[int] = mapped_column(nullable=False)
 
     mos_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
     # Filter / display metadata (category, subcategory, region, keywords, ...).
-    product_metadata: Mapped[dict] = mapped_column(
-        "metadata", JSONB, nullable=False, default=dict
-    )
+    product_metadata: Mapped[dict] = mapped_column("metadata", JSONB, nullable=False, default=dict)
 
     # Lexical search material kept denormalized for the generated tsvector.
     search_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -134,8 +123,6 @@ class AnalyzedProductModel(Base):
         nullable=True,
     )
 
-    analysis: Mapped["AnalysisModel"] = relationship(back_populates="product")
+    analysis: Mapped[AnalysisModel] = relationship(back_populates="product")
 
-    __table_args__ = (
-        Index("analyzed_product_category_idx", product_metadata["category"].astext),
-    )
+    __table_args__ = (Index("analyzed_product_category_idx", product_metadata["category"].astext),)
