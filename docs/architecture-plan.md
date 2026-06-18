@@ -302,3 +302,47 @@ GET    /healthz                  liveness
 - Check whether **your university library** already licenses **Euromonitor Passport or Statista** — if so, that's a free, high-quality Growth-factor upgrade.
 - Split ownership along the **infra/API (A)** vs **data/LLM/MOS (B)** seam in the roadmap; the MOS validation and write-up are shared.
 - Treat the **MOS validation (Spearman vs Keepa)** and the **proposed→validated factor-set analysis** as your two strongest defensible contributions — invest there over breadth.
+
+---
+
+## 15. Decision record — ADR-001: ML strategy (trained predictor vs. live enrichment + RAG)
+
+**Status:** Accepted (June 2026) · **Decision owners:** Miguel, Álvaro
+
+### Context
+An alternative architecture was considered: **gather bulk data from many sources (Amazon, Reddit, Trends, …) up front, train a model on it, and at runtime feed a product + description so the model *generates* the opportunity insights** (markets, pricing, timing). This was weighed against the live-enrichment design (fetch public signals per product on demand → transparent MOS → LLM report grounded by RAG).
+
+Supporting context from research:
+- **Competitive landscape:** every adjacent tool (Jungle Scout, Helium 10, Exploding Topics, Heuritech, Particl, dropship "spy" tools) already emits an **opaque "opportunity score."** That opacity is the universal gap. The whitespace for MarketMind is **explainability + fusion of catalog data with public macro/trade/trends data + multimodal input** — none of the incumbents do this.
+- **Incumbents that do train models** (e.g. Heuritech) rely on **proprietary, labeled** data (sales, trend penetration) built over years — not reproducible from public sources.
+
+### Options considered
+1. **Train a from-scratch supervised "opportunity predictor"** — `(product + description) → predicted outcome`.
+2. **Live enrichment + transparent MOS + LLM report grounded by RAG** (the plan above).
+
+### Decision
+**Adopt Option 2.** Reject Option 1 as the core engine.
+
+### Rationale (why Option 1 fails)
+1. **No ground-truth labels exist.** Supervised learning needs `(product → actual commercial outcome per market/price/time)`. No public dataset provides this. Amazon BSR is category-relative, US-centric, not per-region, and not legally bulk-collectable; Reddit is sentiment, not sales; Trends is interest, not revenue. **Confirmed June 2026: the team has no access to any labeled consumer-product outcome dataset (no university licence, no proprietary data).** This removes the target variable entirely.
+2. **It would rebuild a black box** — abandoning the project's one piece of whitespace (explainability) and competing on the incumbents' turf, where they have far more data.
+3. **Bulk data acquisition is far harder than per-product.** Training-scale collection means mass scraping (Amazon ToS, Reddit API cost, rate limits) over millions of rows — the exact walls the live, on-demand approach avoids.
+4. **Stale at inference.** Opportunity is time-sensitive; a model frozen on a snapshot can't reflect current trends/seasonality without re-fetching live data anyway.
+
+### What this preserves of the original instinct
+The desired UX — *"send a product → get generated insights, learning from accumulated data"* — is delivered by Option 2, where:
+- the **LLM (Sonnet) is the "model"** that synthesizes the report;
+- the **gathered data becomes a knowledge base** — live signals (cached 7-day TTL, so it *feels* instant) plus a **growing pgvector corpus of prior analyses** retrieved via RAG to ground each new report in precedent;
+- the **transparent MOS** keeps every recommendation auditable.
+
+### Where real ML still legitimately fits (validatable, explainability-preserving)
+- **Learn the MOS weights** via an interpretable regression of the factors against a proxy outcome (Keepa BSR rank) on a few hundred products — upgrades "we chose weights" to "we learned them"; coefficients remain the explanation.
+- **Demand forecaster** on Trends time-series (predict next-quarter interest) — has labels (past futures are known), standard error metrics, feeds the Trend/Growth factors.
+
+### Condition that would reverse this decision
+If an **outcome-labeled dataset** is obtained (e.g. the **Olist** real-orders dataset, Amazon review-count as a popularity proxy, or a retailer partnership), a supervised model becomes viable **as a scoped component/PoC** (it would not generalize to arbitrary global products). As of June 2026 this condition is **false**.
+
+### Consequences
+- Core engine stays deterministic + explainable; the LLM is confined to extraction and report synthesis.
+- The vector store is **pgvector** (in the existing Postgres), used for taxonomy classification (day one) and comparable-product RAG grounding (compounds as the corpus grows) — **not** as a store of trend/macro signals, which are fetched live via APIs.
+- Thesis narrative gains a documented, defensible rejected alternative.
