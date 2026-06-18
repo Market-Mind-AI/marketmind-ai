@@ -2,7 +2,7 @@
 # MarketMind AI — developer tasks
 # =============================================================================
 .DEFAULT_GOAL := help
-.PHONY: help install run test lint typecheck arch fmt check
+.PHONY: help install run test lint typecheck arch fmt check ci
 
 UV ?= uv
 
@@ -33,3 +33,10 @@ fmt: ## Auto-format + fix imports with ruff
 	$(UV) run ruff check --fix src tests
 
 check: lint typecheck arch test ## Run all quality gates
+
+ci: ## Run the full CI gate locally (mirrors .github/workflows/ci.yml)
+	$(UV) run ruff check .
+	$(UV) run ruff format --check .
+	$(UV) run mypy .
+	$(UV) run lint-imports
+	$(UV) run pytest -q
