@@ -2,90 +2,291 @@
 import Base from "../layouts/Base.astro";
 ---
 
-<Base title="MarketMind AI — New analysis">
-  <section class="wrap" style="padding: 24px 24px 12px; max-width: 760px;">
-    <p class="eyebrow">Commercial intelligence</p>
-    <h1 style="font-size: clamp(2.1rem, 5vw, 3.1rem);">
-      Score a product's <span style="color: var(--gold);">market opportunity</span> from an image and a sentence.
-    </h1>
-    <p class="muted" style="font-size: 1.05rem; max-width: 56ch;">
-      Drop product photos, describe what it is, and MarketMind extracts attributes, enriches
-      them with public signals, and returns a transparent Market Opportunity Score with an
-      explainable report.
+<Base title="MarketMind AI — Analyze a Product" activeTab="analyze">
+  <section class="screen" id="screen-upload">
+    <div class="eyebrow" data-i18n="idx.eyebrow">New analysis</div>
+    <h1 data-i18n-html="idx.h1">Analyze a <em>product</em></h1>
+    <p class="sub" data-i18n="idx.sub">
+      Drop a few product photos and describe it in your own words. MarketMind reviews it against
+      global demand, growth and marketplace signals — and writes you an explainable opportunity
+      report.
     </p>
-  </section>
 
-  <section class="wrap" style="max-width: 760px; padding-bottom: 64px;">
-    <form id="analyze-form" class="card" style="padding: 26px; display: grid; gap: 22px;">
-      <div>
-        <label class="field-label" for="description">Product description</label>
-        <textarea
-          id="description"
-          name="description"
-          rows="4"
-          required
-          placeholder="Hand-poured soy candle with cedar + amber scent, matte ceramic vessel, refillable…"
-        ></textarea>
-      </div>
-
-      <div>
-        <label class="field-label">Product images</label>
-        <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Add product images">
+    <form id="analyze-form" class="card uploadgrid">
+      <div class="drop">
+        <div class="lab"><span data-i18n="idx.images">Product images</span><span id="imgcount">0 added</span></div>
+        <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Add product images">
           <input id="file-input" type="file" accept="image/*" multiple hidden />
-          <div class="dz-inner">
-            <strong>Drag images here</strong>
-            <span class="faint mono" style="font-size: 0.78rem;">or click to browse · PNG / JPG</span>
+          <div class="thumbs" id="thumbs"></div>
+          <div class="dzcta">
+            <div class="ic">+</div>
+            <b data-i18n="idx.drop">Drag photos here, or click to add</b>
+            <small data-i18n="idx.dropsmall">JPG / PNG · up to 8 images · resized client-side</small>
           </div>
         </div>
-        <div id="previews" class="previews"></div>
       </div>
 
-      <div style="display: flex; align-items: center; gap: 14px;">
-        <button id="submit-btn" type="submit" class="btn">Run analysis →</button>
-        <span id="status" class="mono faint" style="font-size: 0.8rem;"></span>
+      <div class="descbox">
+        <div class="lab"><span data-i18n="idx.description">Description</span><span data-i18n="idx.freetext">free text</span></div>
+        <textarea id="desc" name="description" spellcheck="false" required
+          data-i18n-ph="idx.placeholder"
+          placeholder="Describe your product in a sentence or two…">Eco-friendly bamboo & natural cork yoga mat. Non-slip even when wet, 4mm thick, biodegradable, lightweight with a carry strap. Aimed at home-practice and studio users who care about sustainable materials.</textarea>
       </div>
     </form>
+
+    <div class="runbar">
+      <div class="hint" data-i18n-html="idx.hint">Vision model infers <b>category &amp; attributes</b> — no forms to fill.</div>
+      <button class="btn" id="analyzeBtn" type="submit" form="analyze-form">
+        <span data-i18n="idx.btn">Analyze product</span> <span class="ar">→</span>
+      </button>
+    </div>
+    <div id="status" class="mono faint" style="margin-top: 14px; font-size: 0.8rem; min-height: 1.2em;"></div>
+  </section>
+
+  <!-- Live-analysis loading state, shown in place after submit (no navigation,
+       so it renders reliably under static output), then -> /report/{id}. -->
+  <section class="screen" id="screen-analyzing" style="display: none;">
+    <div class="eyebrow" data-i18n="an.eyebrow">Live analysis</div>
+    <div class="anhead">
+      <div class="pt product-thumb" id="an-thumb"></div>
+      <div>
+        <h2 class="product-title" id="an-title" data-i18n="an.title">Analyzing your product…</h2>
+        <div class="meta" id="an-meta" data-i18n="an.meta">running the pipeline · streaming</div>
+      </div>
+    </div>
+    <div class="barwrap"><div class="b" id="anbar"></div></div>
+    <div class="steps" id="steps">
+      <div class="st" data-res-key="res.attrs"><div class="dotc">✓</div><div class="sl" data-i18n="an.step1">Reading product images (vision)</div><div class="res"></div></div>
+      <div class="st" data-res-key="res.classified"><div class="dotc">✓</div><div class="sl" data-i18n="an.step2">Classifying product &amp; attributes</div><div class="res"></div></div>
+      <div class="st" data-res-key="res.trend"><div class="dotc">✓</div><div class="sl" data-i18n="an.step3">Google Trends — demand trajectory</div><div class="res"></div></div>
+      <div class="st" data-res-key="res.markets"><div class="dotc">✓</div><div class="sl" data-i18n="an.step4">World Bank + IMF — growth &amp; geography</div><div class="res"></div></div>
+      <div class="st" data-res-key="res.live"><div class="dotc">✓</div><div class="sl" data-i18n="an.step5">eBay marketplace — live demand signal</div><div class="res"></div></div>
+      <div class="st" data-res-key="res.scored"><div class="dotc">✓</div><div class="sl" data-i18n="an.step6">Scoring Market Opportunity (MOS)</div><div class="res"></div></div>
+      <div class="st" data-res-key="res.ready"><div class="dotc">✓</div><div class="sl" data-i18n="an.step7">Writing explainable report</div><div class="res"></div></div>
+    </div>
+    <div id="an-error" class="an-error" style="display: none;"></div>
   </section>
 </Base>
 
-<style>
+<style is:global>
+  .uploadgrid {
+    display: grid;
+    grid-template-columns: 1.05fr 1fr;
+    gap: 16px;
+    margin-top: 30px;
+  }
+  @media (max-width: 760px) {
+    .uploadgrid {
+      grid-template-columns: 1fr;
+    }
+  }
+  .drop,
+  .descbox {
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Description fills the column height (matches the image side), like the prototype. */
+  .descbox textarea {
+    flex: 1;
+    min-height: 230px;
+  }
+  .lab {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+    display: flex;
+    justify-content: space-between;
+  }
   .dropzone {
-    border: 1.5px dashed var(--line);
-    border-radius: var(--radius-sm);
-    background: var(--bg);
-    padding: 34px;
-    text-align: center;
+    flex: 1;
+    border: 1.5px dashed rgba(236, 235, 227, 0.18);
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: border-color 0.3s, background 0.3s;
     cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
+    min-height: 230px;
   }
   .dropzone:hover,
   .dropzone:focus,
   .dropzone.drag {
-    border-color: var(--mint);
-    background: var(--mint-soft);
+    border-color: rgba(236, 188, 78, 0.5);
+    background: rgba(236, 188, 78, 0.03);
     outline: none;
   }
-  .dz-inner {
+  .thumbs {
     display: grid;
-    gap: 6px;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 9px;
   }
-  .previews {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
-  }
-  .previews img {
-    width: 78px;
-    height: 78px;
-    object-fit: cover;
-    border-radius: 9px;
+  .thumb {
+    aspect-ratio: 1;
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
     border: 1px solid var(--line);
+    display: flex;
+    align-items: flex-end;
+    animation: pop 0.4s var(--ease);
+  }
+  .thumb img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.86);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  .thumb .cap {
+    position: relative;
+    z-index: 1;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.82);
+    padding: 5px 6px;
+    background: linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent);
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .dzcta {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--muted);
+    text-align: center;
+    padding: 18px 0;
+    margin-top: auto;
+  }
+  .dzcta .ic {
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    display: grid;
+    place-items: center;
+    font-size: 20px;
+    color: var(--gold);
+    background: rgba(236, 188, 78, 0.05);
+  }
+  .dzcta b {
+    color: var(--ink-soft);
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .dzcta small {
+    font-size: 12px;
+  }
+  .runbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+  .hint {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+  }
+  .hint b {
+    color: var(--mint);
   }
 </style>
 
 <script>
-  import { createAnalysis } from "../lib/api";
+  import { createAnalysis, slugForId } from "../lib/api";
+  import { t } from "../lib/i18n";
+
+  // gradient palette for thumbnails (mirrors the prototype atmosphere)
+  const PALETTE = [
+    "linear-gradient(135deg,#2f4636,#7da06d)",
+    "linear-gradient(135deg,#3a3326,#b89a5e)",
+    "linear-gradient(135deg,#26343a,#5e93b8)",
+    "linear-gradient(135deg,#3a2630,#b85e86)",
+    "linear-gradient(135deg,#2a3a36,#5ea98f)",
+    "linear-gradient(135deg,#34302a,#a8845e)",
+  ];
+
+  // Play the live-analysis step animation IN PLACE on this page, then run the
+  // callback (navigate to the report). Done here — not as a separate route —
+  // because dynamic routes 404 on hard navigation under `output: static`.
+  function showAnalyzing(desc: string, file: File | undefined, done: () => void) {
+    const upload = document.getElementById("screen-upload");
+    const an = document.getElementById("screen-analyzing");
+    if (!an) {
+      done();
+      return;
+    }
+    if (upload) upload.style.display = "none";
+    an.style.display = "block";
+
+    const title = document.getElementById("an-title");
+    if (title) {
+      const d = desc.trim();
+      title.textContent = d
+        ? d.length > 46
+          ? `${d.slice(0, 46).trim()}…`
+          : d
+        : t("an.title");
+    }
+    const thumb = document.getElementById("an-thumb");
+    if (thumb && file) {
+      thumb.style.background = `center / cover no-repeat url(${URL.createObjectURL(file)})`;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    const steps = Array.from(an.querySelectorAll<HTMLDivElement>(".st"));
+    const bar = document.getElementById("anbar") as HTMLDivElement | null;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduce) {
+      steps.forEach((s) => s.classList.add("done"));
+      if (bar) bar.style.width = "100%";
+      setTimeout(done, 350);
+      return;
+    }
+
+    let i = 0;
+    const tick = () => {
+      if (i > 0) {
+        const prev = steps[i - 1];
+        prev.classList.remove("run");
+        prev.classList.add("done");
+        const res = prev.querySelector<HTMLDivElement>(".res");
+        if (res) res.textContent = prev.dataset.resKey ? t(prev.dataset.resKey) : "";
+      }
+      if (bar) bar.style.width = `${Math.round((i / steps.length) * 100)}%`;
+      if (i < steps.length) {
+        steps[i].classList.add("run");
+        i++;
+        setTimeout(tick, 600 + Math.random() * 360);
+      } else {
+        if (bar) bar.style.width = "100%";
+        setTimeout(done, 480);
+      }
+    };
+    setTimeout(tick, 320);
+  }
 
   // Re-run on every astro:page-load so view-transition navigations rebind.
   function init() {
@@ -95,33 +296,52 @@ import Base from "../layouts/Base.astro";
 
     const dropzone = document.getElementById("dropzone")!;
     const fileInput = document.getElementById("file-input") as HTMLInputElement;
-    const previews = document.getElementById("previews")!;
+    const thumbs = document.getElementById("thumbs")!;
+    const imgcount = document.getElementById("imgcount")!;
     const statusEl = document.getElementById("status")!;
-    const submitBtn = document.getElementById("submit-btn") as HTMLButtonElement;
+    const submitBtn = document.getElementById("analyzeBtn") as HTMLButtonElement;
 
     let files: File[] = [];
 
-    function renderPreviews() {
-      previews.innerHTML = "";
-      for (const f of files) {
+    // Localize the initial "0 added" count (static markup is English).
+    imgcount.textContent = `${files.length} ${t("idx.added")}`;
+
+    function renderThumbs() {
+      thumbs.innerHTML = "";
+      files.slice(0, 8).forEach((f, i) => {
+        const t = document.createElement("div");
+        t.className = "thumb";
+        t.style.background = PALETTE[i % PALETTE.length];
+        // First thumb morphs into the analyzing/report header.
+        if (i === 0) t.style.viewTransitionName = "product-thumb";
         const img = document.createElement("img");
         img.src = URL.createObjectURL(f);
         img.alt = f.name;
-        previews.appendChild(img);
-      }
+        const cap = document.createElement("div");
+        cap.className = "cap";
+        cap.textContent = f.name;
+        t.appendChild(img);
+        t.appendChild(cap);
+        thumbs.appendChild(t);
+      });
+      imgcount.textContent = `${files.length} ${t("idx.added")}`;
     }
 
     function addFiles(list: FileList | null) {
       if (!list) return;
       for (const f of Array.from(list)) {
-        if (f.type.startsWith("image/")) files.push(f);
+        if (f.type.startsWith("image/") && files.length < 8) files.push(f);
       }
-      renderPreviews();
+      renderThumbs();
     }
 
     dropzone.addEventListener("click", () => fileInput.click());
     dropzone.addEventListener("keydown", (e) => {
-      if ((e as KeyboardEvent).key === "Enter" || (e as KeyboardEvent).key === " ") fileInput.click();
+      const k = (e as KeyboardEvent).key;
+      if (k === "Enter" || k === " ") {
+        e.preventDefault();
+        fileInput.click();
+      }
     });
     fileInput.addEventListener("change", () => addFiles(fileInput.files));
 
@@ -141,19 +361,27 @@ import Base from "../layouts/Base.astro";
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const description = (document.getElementById("description") as HTMLTextAreaElement).value.trim();
-      if (!description) {
-        statusEl.textContent = "add a description first";
+      const desc = (document.getElementById("desc") as HTMLTextAreaElement).value.trim();
+      if (!desc) {
+        statusEl.textContent = t("idx.err.desc");
         return;
       }
       submitBtn.disabled = true;
       statusEl.textContent = "submitting…";
       try {
-        const res = await createAnalysis(description, files);
-        statusEl.textContent = "started · redirecting…";
-        window.location.assign(`/analyzing/${res.id}`);
+        const res = await createAnalysis(desc, files);
+        try {
+          sessionStorage.setItem(`mm:slug:${res.analysis_id}`, res.slug ?? slugForId(res.analysis_id));
+        } catch {
+          /* sessionStorage may be unavailable */
+        }
+        statusEl.textContent = "";
+        // Show the live-analysis animation in place, then open the report.
+        showAnalyzing(desc, files[0], () =>
+          window.location.assign(`/report/${res.analysis_id}`),
+        );
       } catch (err) {
-        statusEl.textContent = err instanceof Error ? err.message : "request failed";
+        statusEl.textContent = err instanceof Error ? err.message : t("idx.err.failed");
         submitBtn.disabled = false;
       }
     });

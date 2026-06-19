@@ -5,11 +5,14 @@ import "../styles/global.css";
 interface Props {
   title?: string;
   description?: string;
+  /** Which topbar tab to highlight. */
+  activeTab?: "analyze" | "batch" | "history";
 }
 
 const {
   title = "MarketMind AI",
   description = "Generative commercial intelligence — score market opportunity from a product image and a sentence.",
+  activeTab = "analyze",
 } = Astro.props;
 ---
 
@@ -24,30 +27,126 @@ const {
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,560;9..144,600&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,400..600&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
 
     <!-- App-like view transitions across page navigations -->
     <ClientRouter />
+
+    <style is:global>
+      .topright {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .langtoggle {
+        display: flex;
+        gap: 4px;
+      }
+      .langtoggle button {
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        padding: 6px 11px;
+        border-radius: 999px;
+        border: 1px solid var(--line-2);
+        background: transparent;
+        cursor: pointer;
+        transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+      }
+      .langtoggle button:hover {
+        color: var(--ink-soft);
+      }
+      .langtoggle button.on {
+        color: var(--ink);
+        background: rgba(236, 235, 227, 0.06);
+        border-color: rgba(236, 235, 227, 0.16);
+      }
+      .foot {
+        position: relative;
+        z-index: 2;
+        max-width: 920px;
+        margin: 0 auto;
+        padding: 28px clamp(18px, 4vw, 42px) 48px;
+        font-family: var(--font-mono);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+        text-align: center;
+      }
+    </style>
   </head>
   <body>
-    <header class="site-header">
-      <a class="brand" href="/">
-        <span class="dot"></span>
-        MarketMind<span class="faint" style="font-family: var(--font-mono); font-size: 0.78rem;"
-          >AI</span
-        >
-      </a>
-      <a class="mono faint" href="/" style="font-size: 0.78rem;">new analysis ↗</a>
+    <div class="atmo"></div>
+    <div class="grain"></div>
+
+    <header class="top">
+      <a class="brand" href="/"><span class="dot"></span> MarketMind&nbsp;AI</a>
+      <nav class="tabs">
+        <a href="/" class={activeTab === "analyze" ? "on" : ""} data-i18n="nav.analyze">Analyze</a>
+        <a href="/" class={activeTab === "batch" ? "on" : ""} data-i18n="nav.batch">Batch · CSV</a>
+        <a href="/" class={activeTab === "history" ? "on" : ""} data-i18n="nav.history">History</a>
+      </nav>
+      <div class="topright">
+        <div class="langtoggle tabs">
+          <button type="button" id="lang-en">EN</button>
+          <button type="button" id="lang-es">ES</button>
+        </div>
+        <span class="proto" data-i18n="topbar.live">live · backend</span>
+      </div>
     </header>
 
     <main>
       <slot />
     </main>
 
-    <footer class="wrap" style="padding: 48px 24px; color: var(--ink-faint); font-size: 0.82rem;">
-      <span class="mono">MarketMind AI — commercial intelligence MVP</span>
+    <footer class="foot">
+      <span data-i18n="foot">MarketMind AI — commercial intelligence MVP</span>
     </footer>
+
+    <script>
+      import { applyTranslations, getLang, setLang, type Lang } from "../lib/i18n";
+
+      function markActive() {
+        const lang = getLang();
+        const en = document.getElementById("lang-en");
+        const es = document.getElementById("lang-es");
+        en?.classList.toggle("on", lang === "en");
+        es?.classList.toggle("on", lang === "es");
+      }
+
+      function choose(l: Lang) {
+        if (getLang() === l) return;
+        setLang(l);
+        // Reload so JS-built report / analyzing text re-renders in the new lang.
+        location.reload();
+      }
+
+      function bindToggle() {
+        const en = document.getElementById("lang-en");
+        const es = document.getElementById("lang-es");
+        if (en && en.dataset.bound !== "1") {
+          en.dataset.bound = "1";
+          en.addEventListener("click", () => choose("en"));
+        }
+        if (es && es.dataset.bound !== "1") {
+          es.dataset.bound = "1";
+          es.addEventListener("click", () => choose("es"));
+        }
+      }
+
+      function sync() {
+        applyTranslations();
+        markActive();
+        bindToggle();
+      }
+
+      sync();
+      document.addEventListener("astro:page-load", sync);
+    </script>
   </body>
 </html>

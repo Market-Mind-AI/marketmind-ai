@@ -8,40 +8,8 @@ export function getStaticPaths() {
 }
 ---
 
-<Base title="MarketMind AI — Report">
-  <section class="wrap" style="max-width: 900px; padding: 16px 24px 64px;">
-    <div
-      style="display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 8px;"
-    >
-      <a class="mono faint" href="/" style="font-size: 0.8rem;">← new analysis</a>
-      <div style="display: flex; gap: 10px;">
-        <a id="r-pdf" class="btn btn-ghost" href="#" target="_blank" rel="noopener">Download PDF</a>
-        <button id="r-share" class="btn">Share link</button>
-      </div>
-    </div>
-
-    <ReportView showActions={true} />
+<Base title="MarketMind AI — Report" activeTab="analyze">
+  <section class="screen">
+    <ReportView showActions={true} fromSlug={false} />
   </section>
 </Base>
-
-<script>
-  function init() {
-    const btn = document.getElementById("r-share") as HTMLButtonElement | null;
-    if (!btn || btn.dataset.bound === "1") return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", async () => {
-      const id = location.pathname.split("/").filter(Boolean).pop();
-      if (!id) return;
-      const url = `${location.origin}/r/${id}`;
-      try {
-        await navigator.clipboard.writeText(url);
-        btn.textContent = "Copied ✓";
-        setTimeout(() => (btn.textContent = "Share link"), 1600);
-      } catch {
-        window.prompt("Share this link:", url);
-      }
-    });
-  }
-  init();
-  document.addEventListener("astro:page-load", init);
-</script>

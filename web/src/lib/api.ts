@@ -6,13 +6,21 @@ export const API_BASE: string =
   (import.meta.env.PUBLIC_API_BASE as string | undefined)?.replace(/\/$/, "") ??
   "http://localhost:8000";
 
-/* ---------- response shapes (mirror infrastructure/api/schemas.py) ---------- */
+/* ---------- response shapes (mirror infrastructure/api/schemas.py) ----------
+   Verified against the live API in fake mode. Key facts:
+   - POST /analyses returns { analysis_id, slug, status }  (NOT `id`)
+   - GET /analyses/{id} returns `category` at the TOP LEVEL
+   - score.contributions is an array of { factor, weight, normalized_score,
+     contribution, imputed }  (NOT score.factors)
+   - report fields are FLAT: price_low / price_high / currency / price_note /
+     launch_label / launch_peak_note  (NOT nested price_band / launch_window)
+   - SSE stream is GET /analyses/{id}/stream  (NOT /events)
+-------------------------------------------------------------------------- */
 
 export interface FactorContributionResponse {
   factor: string;
-  raw_value: number;
-  normalized_score: number;
   weight: number;
+  normalized_score: number;
   contribution: number;
   imputed: boolean;
 }
@@ -21,7 +29,7 @@ export interface ScoreResponse {
   total: number;
   tier: string;
   explanation: string;
-  factors: FactorContributionResponse[];
+  contributions: FactorContributionResponse[];
 }
 
 export interface MarketResponse {
@@ -41,13 +49,12 @@ export interface ReportResponse {
   verdict: string;
   summary: string;
   markets: MarketResponse[];
-  price_band: {
-    low: string;
-    high: string;
-    currency: string;
-    note: string;
-  };
-  launch_window: { label: string; peak_note: string };
+  price_low: string;
+  price_high: string;
+  currency: string;
+  price_note: string;
+  launch_label: string;
+  launch_peak_note: string;
   recommendations: string[];
   citations: CitationResponse[];
 }
@@ -55,25 +62,18 @@ export interface ReportResponse {
 export interface AnalysisResponse {
   id: string;
   status: string;
+  created_at: string;
   description: string;
   image_refs: string[];
-  attributes?: {
-    category: string;
-    subcategory: string;
-    materials: string[];
-    color: string;
-    style: string;
-    key_features: string[];
-    suggested_keywords: string[];
-    confidence: number;
-  } | null;
-  score?: ScoreResponse | null;
-  report?: ReportResponse | null;
-  failure_reason?: string | null;
+  category: string | null;
+  score: ScoreResponse | null;
+  report: ReportResponse | null;
+  failure_reason: string | null;
 }
 
 export interface AnalyzeResponse {
-  id: string;
+  analysis_id: string;
+  slug: string;
   status: string;
 }
 
@@ -116,15 +116,16 @@ export async function getAnalysis(id: string): Promise<AnalysisResponse> {
   return (await res.json()) as AnalysisResponse;
 }
 
-/** SSE URL for GET /analyses/{id}/events — open with `new EventSource(url)`. */
+/** SSE URL for GET /analyses/{id}/stream — open with `new EventSource(url)`. */
 export function eventsUrl(id: string): string {
-  return `${API_BASE}/analyses/${encodeURIComponent(id)}/events`;
+  return `${API_BASE}/analyses/${encodeURIComponent(id)}/stream`;
 }
 
 /**
  * Subscribe to the live progress stream. Returns a disposer that closes the
- * EventSource. The backend publishes steps: extracting, enriching, scoring,
- * embedding, reporting, completed, failed.
+ * EventSource. Kept as a future enhancement — in fake mode the pipeline runs
+ * synchronously inside the POST, so the analyzing page relies on GET polling,
+ * not this stream.
  */
 export function subscribeProgress(
   id: string,
@@ -154,5 +155,61 @@ export function reportPdfUrl(id: string): string {
 }
 
 export function isTerminalStatus(status: string): boolean {
-  return status === "completed" || status === "failed" || status === "COMPLETED" || status === "FAILED";
+  const s = status.toLowerCase();
+  return s === "completed" || s === "failed";
+}
+
+/* ---------- helpers ---------- */
+
+/** The share slug is the analysis UUID hex (dashes stripped). */
+export function slugForId(id: string): string {
+  return id.replace(/-/g, "").toLowerCase();
+}
+
+/** Reconstruct a UUID from a 32-char hex slug (insert dashes). */
+export function idFromSlug(slug: string): string {
+  const hex = slug.replace(/-/g, "").toLowerCase();
+  if (hex.length !== 32) return slug; // already a uuid or unexpected — pass through
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** Tier metadata for the UI (colors mirror the prototype).
+ *  `key` is a stable identifier ("strong"|"moderate"|"weak") so callers can
+ *  resolve a localized label via i18n: t("tier." + meta.key). `label` is the
+ *  English fallback and is kept for non-localized contexts. */
+export interface TierMeta {
+  key: "strong" | "moderate" | "weak";
+  label: string;
+  color: string;
+  border: string;
+  bg: string;
+}
+
+export function tierMeta(tier: string): TierMeta {
+  const t = tier.toLowerCase();
+  if (t === "strong") {
+    return {
+      key: "strong",
+      label: "Strong opportunity",
+      color: "#5fd0ad",
+      border: "rgba(95,208,173,.35)",
+      bg: "rgba(95,208,173,.06)",
+    };
+  }
+  if (t === "moderate") {
+    return {
+      key: "moderate",
+      label: "Moderate opportunity",
+      color: "#ecbc4e",
+      border: "rgba(236,188,78,.35)",
+      bg: "rgba(236,188,78,.06)",
+    };
+  }
+  return {
+    key: "weak",
+    label: "Watch · weak",
+    color: "#e96a4c",
+    border: "rgba(233,106,76,.35)",
+    bg: "rgba(233,106,76,.08)",
+  };
 }

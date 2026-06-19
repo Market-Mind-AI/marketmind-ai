@@ -3,144 +3,518 @@
 // hydrate it from the API by analysis id. Markup is built in the client script
 // from the JSON response, keeping the static build trivial.
 interface Props {
-  /** Show the "download PDF / share" action bar (hidden on public share view). */
+  /** Show the sticky action bar (hidden on the public share view). */
   showActions?: boolean;
+  /** When true, resolve the id from a /r/{slug} URL (slug = uuid hex). */
+  fromSlug?: boolean;
 }
-const { showActions = true } = Astro.props;
+const { showActions = true, fromSlug = false } = Astro.props;
 ---
 
-<div class="report-root" data-show-actions={showActions ? "1" : "0"}>
-  <div class="product-identity" style="margin-bottom: 28px;">
-    <img class="product-thumb" id="r-thumb" alt="Product" />
-    <div>
-      <span id="r-tier" class="tier-pill tier-moderate" style="display: none;"></span>
-      <h1 class="product-title" id="r-title" style="margin-top: 8px;">Loading…</h1>
-    </div>
-  </div>
-
-  <div id="r-state" class="muted mono" style="font-size: 0.85rem;">Loading report…</div>
+<div class="report-root" data-show-actions={showActions ? "1" : "0"} data-from-slug={fromSlug ? "1" : "0"}>
+  <div id="r-state" class="r-state mono" data-i18n="rep.loading">Loading report…</div>
 
   <div id="r-body" style="display: none;">
-    <!-- score -->
-    <section class="card" style="padding: 24px; margin-bottom: 22px;">
-      <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 16px;">
+    <!-- header -->
+    <div class="rephead">
+      <div class="rl">
+        <div class="rthumb product-thumb" id="r-thumb"></div>
         <div>
-          <p class="eyebrow">Market Opportunity Score</p>
-          <div style="display: flex; align-items: baseline; gap: 12px;">
-            <span id="r-total" class="mono" style="font-size: 3rem; color: var(--gold);">—</span>
-            <span class="faint mono">/ 100</span>
-          </div>
+          <span class="chip" id="r-chip">opportunity</span>
+          <h2 class="product-title" id="r-title">Product</h2>
+          <div class="when" id="r-when"></div>
         </div>
-        <p id="r-verdict" class="muted" style="max-width: 40ch; text-align: right;"></p>
       </div>
-      <p id="r-explanation" class="muted" style="margin-top: 8px; font-size: 0.9rem;"></p>
-      <div id="r-factors" class="factors"></div>
-    </section>
+    </div>
 
-    <!-- summary -->
-    <section class="card" style="padding: 24px; margin-bottom: 22px;">
-      <p class="eyebrow">Summary</p>
-      <p id="r-summary" class="muted"></p>
-    </section>
+    <!-- score + verdict -->
+    <div class="scorecard">
+      <div class="gauge">
+        <svg width="148" height="148" viewBox="0 0 148 148">
+          <circle cx="74" cy="74" r="63" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="11"></circle>
+          <circle id="r-ring" cx="74" cy="74" r="63" fill="none" stroke="url(#r-grad)" stroke-width="11"
+            stroke-linecap="round" stroke-dasharray="396" stroke-dashoffset="396" transform="rotate(-90 74 74)"></circle>
+          <defs>
+            <linearGradient id="r-grad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#ecbc4e"></stop>
+              <stop offset="1" stop-color="#5fd0ad"></stop>
+            </linearGradient>
+          </defs>
+        </svg>
+        <div class="val">
+          <div class="num" id="r-num">0</div>
+          <div class="den">MOS / 100</div>
+        </div>
+      </div>
+      <div class="verdict">
+        <div class="vt" id="r-vt" data-i18n="rep.verdict">Verdict</div>
+        <h3 id="r-verdict">—</h3>
+        <p id="r-summary"></p>
+      </div>
+    </div>
 
-    <!-- markets / pricing / timing -->
-    <div class="grid-3">
-      <section class="card" style="padding: 22px;">
-        <p class="eyebrow">Markets</p>
-        <ul id="r-markets" class="plain"></ul>
-      </section>
-      <section class="card" style="padding: 22px;">
-        <p class="eyebrow">Pricing</p>
-        <div id="r-price"></div>
-      </section>
-      <section class="card" style="padding: 22px;">
-        <p class="eyebrow">Timing</p>
-        <div id="r-timing"></div>
-      </section>
+    <!-- factor breakdown -->
+    <div class="sec">
+      <div class="sectitle" data-i18n="rep.why">Why — Market Opportunity Score breakdown</div>
+      <div class="stack" id="r-stack"></div>
+      <div class="legend" id="r-legend"></div>
+    </div>
+
+    <!-- markets -->
+    <div class="sec">
+      <div class="sectitle" data-i18n="rep.where">Where — recommended markets</div>
+      <div class="mkts" id="r-markets"></div>
+    </div>
+
+    <!-- price + timing -->
+    <div class="sec">
+      <div class="sectitle" data-i18n="rep.howmuch">How much &amp; when</div>
+      <div class="twoup">
+        <div class="ins">
+          <div class="il" data-i18n="rep.priceband">Suggested price band</div>
+          <div class="big" id="r-price">—</div>
+          <p id="r-price-note"></p>
+        </div>
+        <div class="ins">
+          <div class="il" data-i18n="rep.window">Best launch window</div>
+          <div class="big" id="r-window">—</div>
+          <p id="r-window-note"></p>
+        </div>
+      </div>
     </div>
 
     <!-- recommendations -->
-    <section class="card" style="padding: 24px; margin-top: 22px;">
-      <p class="eyebrow">Recommendations</p>
-      <ul id="r-recs" class="plain"></ul>
-    </section>
+    <div class="sec">
+      <div class="sectitle" data-i18n="rep.recs">Recommendations</div>
+      <div class="recs" id="r-recs"></div>
+    </div>
 
     <!-- citations -->
-    <section style="margin-top: 22px;">
-      <p class="eyebrow">Citations</p>
-      <ul id="r-citations" class="citations"></ul>
-    </section>
+    <div class="sec">
+      <div class="sectitle" data-i18n="rep.sources">Sources — every claim is cited</div>
+      <div class="cites" id="r-cites"></div>
+    </div>
+
+    <!-- action bar -->
+    <div class="actions" id="r-actions" style="display: none;">
+      <div class="lft" id="r-actions-summary"></div>
+      <div class="grp">
+        <button class="btn ghost" id="r-share" data-i18n="rep.copy">Copy share link</button>
+        <a class="btn ghost" href="/" data-i18n="rep.new">New analysis</a>
+        <a class="btn" id="r-pdf" href="#" target="_blank" rel="noopener"><span data-i18n="rep.pdf">Download PDF</span> <span class="ar">↓</span></a>
+      </div>
+    </div>
   </div>
 </div>
 
-<style>
-  .factors {
-    display: grid;
-    gap: 8px;
-    margin-top: 20px;
+<div class="toast" id="r-toast"><span class="ck">✓</span><span id="r-toast-msg"></span></div>
+
+<style is:global>
+  .r-state {
+    color: var(--muted);
+    font-size: 0.85rem;
+    padding: 40px 0;
   }
-  .factor {
-    display: grid;
-    grid-template-columns: 120px 1fr 56px;
-    align-items: center;
-    gap: 12px;
-    font-size: 0.82rem;
+
+  /* header */
+  .rephead {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
   }
-  .factor .name {
+  .rl {
+    display: flex;
+    gap: 18px;
+    align-items: flex-start;
+  }
+  .rthumb {
+    width: 66px;
+    height: 66px;
+    border-radius: 14px;
+    background: linear-gradient(135deg, #2f4636, #7da06d);
+    flex: none;
+    margin-top: 3px;
+    border: 1px solid var(--line);
+  }
+  .chip {
     font-family: var(--font-mono);
-    text-transform: lowercase;
-    color: var(--ink-dim);
-  }
-  .bar {
-    height: 7px;
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--mint);
+    border: 1px solid rgba(95, 208, 173, 0.35);
     border-radius: 999px;
-    background: var(--bg-elev-2);
-    overflow: hidden;
+    padding: 4px 11px;
+    display: inline-block;
+    margin-bottom: 14px;
   }
-  .bar > span {
-    display: block;
-    height: 100%;
-    background: linear-gradient(90deg, var(--mint), var(--gold));
+  .rephead h2 {
+    font-family: var(--font-display);
+    font-weight: 450;
+    font-size: clamp(26px, 4vw, 40px);
+    line-height: 1.05;
+    letter-spacing: -0.015em;
   }
-  .factor .val {
+  .when {
     font-family: var(--font-mono);
-    text-align: right;
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+
+  /* scorecard */
+  .scorecard {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 30px;
+    align-items: center;
+    padding: 28px;
+    margin-top: 24px;
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    background: radial-gradient(110% 130% at 0 0, rgba(95, 208, 173, 0.1), transparent 55%);
+  }
+  @media (max-width: 620px) {
+    .scorecard {
+      grid-template-columns: 1fr;
+      text-align: center;
+      justify-items: center;
+    }
+  }
+  .gauge {
+    position: relative;
+    width: 148px;
+    height: 148px;
+  }
+  .gauge .val {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+  .gauge .num {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 44px;
+    line-height: 1;
     color: var(--ink);
   }
-  .grid-3 {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 22px;
+  .gauge .den {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
   }
-  @media (max-width: 760px) {
-    .grid-3 {
+  .verdict .vt {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--mint);
+    margin-bottom: 8px;
+  }
+  .verdict h3 {
+    font-family: var(--font-display);
+    font-weight: 450;
+    font-size: 26px;
+    margin-bottom: 8px;
+    line-height: 1.1;
+  }
+  .verdict p {
+    color: var(--ink-soft);
+    font-weight: 330;
+    max-width: 46ch;
+    font-size: 15px;
+  }
+
+  /* sections */
+  .sec {
+    margin-top: 32px;
+  }
+  .sectitle {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .sectitle::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line-2);
+  }
+
+  /* stacked factor bar */
+  .stack {
+    height: 30px;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    border: 1px solid var(--line);
+  }
+  .seg {
+    height: 100%;
+    width: 0;
+    transition: width 1.1s var(--ease);
+  }
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    margin-top: 16px;
+  }
+  @media (max-width: 680px) {
+    .legend {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+  .lg {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .lg .k {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    color: var(--ink-soft);
+    text-transform: capitalize;
+  }
+  .lg .sw {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex: none;
+  }
+  .lg .v {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    color: var(--ink);
+    margin-left: 17px;
+  }
+  .lg .v small {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .explain {
+    font-size: 11.5px;
+    color: var(--faint);
+    margin-top: 16px;
+    white-space: pre-line;
+    line-height: 1.7;
+  }
+
+  /* markets */
+  .mkts {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  @media (max-width: 680px) {
+    .mkts {
       grid-template-columns: 1fr;
     }
   }
-  .plain {
-    list-style: none;
-    padding: 0;
-    margin: 0;
+  .mkt {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    background: rgba(255, 255, 255, 0.015);
+    transition: border-color 0.3s, transform 0.3s;
+  }
+  .mkt:hover {
+    border-color: rgba(236, 235, 227, 0.22);
+    transform: translateY(-3px);
+  }
+  .mkt .mh {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .mkt .fl {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    font-size: 16px;
+  }
+  .mkt .fl .fg {
+    font-size: 22px;
+  }
+  .mkt .sc {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--gold);
+  }
+  .mkt .mtrack {
+    height: 6px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    overflow: hidden;
+  }
+  .mkt .mfill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--gold-deep), var(--gold));
+    transition: width 1s var(--ease);
+  }
+  .mkt p {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* two-up insight cards */
+  .twoup {
     display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
   }
-  .plain li .muted {
-    font-size: 0.85rem;
+  @media (max-width: 680px) {
+    .twoup {
+      grid-template-columns: 1fr;
+    }
   }
-  .citations {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: grid;
-    gap: 8px;
-    font-size: 0.8rem;
-    color: var(--ink-faint);
+  .ins {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px 20px;
+    background: rgba(255, 255, 255, 0.015);
+  }
+  .ins .il {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .ins .big {
+    font-family: var(--font-display);
+    font-weight: 480;
+    font-size: 28px;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+  .ins .big span {
+    font-size: 16px;
+    color: var(--mint);
     font-family: var(--font-mono);
   }
-  .price-band {
+  .ins p {
+    font-size: 13.5px;
+    color: var(--ink-soft);
+    margin-top: 8px;
+    font-weight: 330;
+  }
+
+  /* recommendations */
+  .recs {
+    display: grid;
+    gap: 10px;
+  }
+  .rec {
+    display: grid;
+    grid-template-columns: 26px 1fr;
+    gap: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.015);
+  }
+  .rec .n {
     font-family: var(--font-display);
-    font-size: 1.6rem;
+    font-style: italic;
     color: var(--gold);
+    font-size: 17px;
+  }
+  .rec p {
+    font-size: 14.5px;
+    color: var(--ink-soft);
+  }
+
+  /* citations */
+  .cites {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .cite {
+    display: grid;
+    grid-template-columns: 160px 1fr auto;
+    gap: 14px;
+    padding: 13px 18px;
+    border-top: 1px solid var(--line-2);
+    font-size: 13px;
+    align-items: center;
+  }
+  .cite:first-child {
+    border-top: none;
+  }
+  .cite .src {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .cite .dv {
+    color: var(--muted);
+  }
+  .cite .dt {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--faint);
+  }
+  @media (max-width: 600px) {
+    .cite {
+      grid-template-columns: 1fr auto;
+    }
+    .cite .dt {
+      display: none;
+    }
+  }
+
+  /* action bar */
+  .actions {
+    position: sticky;
+    bottom: 0;
+    margin-top: 40px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(18, 21, 18, 0.7), rgba(12, 14, 12, 0.92));
+    backdrop-filter: blur(14px);
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+  .actions .lft {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .actions .lft b {
+    color: var(--ink);
+  }
+  .actions .grp {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
   }
 </style>
 
@@ -148,128 +522,252 @@ const { showActions = true } = Astro.props;
   import {
     getAnalysis,
     reportPdfUrl,
+    tierMeta,
+    slugForId,
+    idFromSlug,
     type AnalysisResponse,
-    type ReportResponse,
   } from "../lib/api";
+  import { t } from "../lib/i18n";
 
-  function tierClass(tier: string): string {
-    const t = tier.toLowerCase();
-    if (t === "strong") return "tier-strong";
-    if (t === "weak") return "tier-weak";
-    return "tier-moderate";
+  // NOTE: only the UI chrome below is localized via t(). The report *content*
+  // (verdict, summary, market rationales, recommendation text, citation
+  // source/detail) stays in English — it comes from the backend. Content
+  // localization will arrive later from the LLM (passing a `lang` param).
+
+  // Factor colors (stable order Trend/Growth/Geographic/Seasonality/Consumer),
+  // falling back by index for any other factor name from the API.
+  const FACTOR_COLORS: Record<string, string> = {
+    trend: "linear-gradient(180deg,#f1c861,#c99a35)",
+    growth: "linear-gradient(180deg,#6fd9ba,#39a586)",
+    geographic: "linear-gradient(180deg,#86bdee,#5a86b3)",
+    seasonality: "linear-gradient(180deg,#e89a86,#c2654c)",
+    consumer: "linear-gradient(180deg,#c9b8e0,#9c84c2)",
+  };
+  const FALLBACK_COLORS = [
+    "linear-gradient(180deg,#f1c861,#c99a35)",
+    "linear-gradient(180deg,#6fd9ba,#39a586)",
+    "linear-gradient(180deg,#86bdee,#5a86b3)",
+    "linear-gradient(180deg,#e89a86,#c2654c)",
+    "linear-gradient(180deg,#c9b8e0,#9c84c2)",
+  ];
+  // Map ISO country codes to flag emoji.
+  function flag(code: string): string {
+    if (!code || code.length !== 2) return "🏳️";
+    return code
+      .toUpperCase()
+      .replace(/./g, (c) => String.fromCodePoint(127397 + c.charCodeAt(0)));
+  }
+  function colorFor(factor: string, i: number): string {
+    return FACTOR_COLORS[factor.toLowerCase()] ?? FALLBACK_COLORS[i % FALLBACK_COLORS.length];
   }
 
-  function el<K extends keyof HTMLElementTagNameMap>(
-    tag: K,
-    html: string,
-    cls?: string,
-  ): HTMLElementTagNameMap[K] {
+  function el(tag: string, html: string, cls?: string): HTMLElement {
     const node = document.createElement(tag);
     if (cls) node.className = cls;
     node.innerHTML = html;
     return node;
   }
 
-  function render(a: AnalysisResponse) {
-    const title = document.getElementById("r-title")!;
-    const thumb = document.getElementById("r-thumb") as HTMLImageElement;
-    const tierPill = document.getElementById("r-tier")!;
+  function render(a: AnalysisResponse, showActions: boolean) {
     const state = document.getElementById("r-state")!;
     const body = document.getElementById("r-body")!;
-
-    const cat = a.attributes?.category ?? "Product";
-    const sub = a.attributes?.subcategory;
-    title.textContent = sub ? `${cat} · ${sub}` : cat;
-
-    const ref = a.image_refs?.[0];
-    if (ref) {
-      thumb.src = ref;
-      thumb.style.display = "";
-    } else {
-      thumb.style.display = "none";
-    }
 
     if (a.status.toLowerCase() === "failed") {
       state.textContent = a.failure_reason ?? "Analysis failed.";
       return;
     }
-    if (!a.report) {
+    if (!a.report || !a.score) {
       state.textContent = "Report is not ready yet.";
       return;
     }
 
-    if (a.score) {
-      tierPill.style.display = "inline-block";
-      tierPill.className = `tier-pill ${tierClass(a.score.tier)}`;
-      tierPill.textContent = a.score.tier;
-      document.getElementById("r-total")!.textContent = a.score.total.toFixed(1);
-      document.getElementById("r-explanation")!.textContent = a.score.explanation;
+    const score = a.score;
+    const rep = a.report;
+    const tier = tierMeta(score.tier);
+    const total = Math.round(score.total);
 
-      const factorsEl = document.getElementById("r-factors")!;
-      factorsEl.innerHTML = "";
-      for (const f of a.score.factors) {
-        const row = el("div", "", "factor");
-        row.appendChild(el("span", `${f.factor}${f.imputed ? " *" : ""}`, "name"));
-        const bar = el("div", `<span style="width:${Math.max(0, Math.min(100, f.normalized_score))}%"></span>`, "bar");
-        row.appendChild(bar);
-        row.appendChild(el("span", f.normalized_score.toFixed(0), "val"));
-        factorsEl.appendChild(row);
-      }
-    }
+    // header
+    const chip = document.getElementById("r-chip")!;
+    chip.textContent = t("tier." + tier.key);
+    chip.style.color = tier.color;
+    chip.style.borderColor = tier.border;
+    chip.style.background = tier.bg;
 
-    const rep: ReportResponse = a.report;
+    document.getElementById("r-title")!.textContent = a.category ?? "Product";
+
+    const created = a.created_at ? new Date(a.created_at) : null;
+    const when = created
+      ? created.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+      : "";
+    const imgCount = a.image_refs?.length ?? 0;
+    const imgWord = imgCount === 1 ? t("rep.image") : t("rep.images");
+    document.getElementById("r-when")!.textContent =
+      `${a.category ?? "Product"}${when ? ` · ${t("rep.analyzed")} ${when}` : ""} · ${imgCount} ${imgWord} · MOS ${total}/100`;
+
+    // verdict + gauge
+    const vt = document.getElementById("r-vt")!;
+    vt.style.color = tier.color;
     document.getElementById("r-verdict")!.textContent = rep.verdict;
     document.getElementById("r-summary")!.textContent = rep.summary;
 
+    const ring = document.getElementById("r-ring") as unknown as SVGCircleElement;
+    const numEl = document.getElementById("r-num")!;
+    const circ = 396;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      ring.style.strokeDashoffset = String(circ - (circ * total) / 100);
+      numEl.textContent = String(total);
+    } else {
+      requestAnimationFrame(() => {
+        ring.style.transition = "stroke-dashoffset 1.4s cubic-bezier(.2,.7,.2,1)";
+        ring.style.strokeDashoffset = String(circ - (circ * total) / 100);
+      });
+      let n = 0;
+      const step = Math.max(1, Math.round(total / 39));
+      const cnt = setInterval(() => {
+        n += step;
+        if (n >= total) {
+          n = total;
+          clearInterval(cnt);
+        }
+        numEl.textContent = String(n);
+      }, 22);
+    }
+
+    // factor stacked bar + legend (segment width = contribution out of 100)
+    const stack = document.getElementById("r-stack")!;
+    const legend = document.getElementById("r-legend")!;
+    stack.innerHTML = "";
+    legend.innerHTML = "";
+    legend.style.gridTemplateColumns = `repeat(${Math.min(5, score.contributions.length)}, 1fr)`;
+    score.contributions.forEach((c, i) => {
+      const grad = colorFor(c.factor, i);
+      const seg = document.createElement("div");
+      seg.className = "seg";
+      seg.style.background = grad;
+      seg.style.width = reduce ? `${c.contribution}%` : "0%";
+      stack.appendChild(seg);
+
+      const swColor = grad.match(/#([0-9a-f]{6})/i)?.[0] ?? "var(--gold)";
+      legend.appendChild(
+        el(
+          "div",
+          `<div class="k"><span class="sw" style="background:${swColor}"></span>${c.factor}${c.imputed ? " *" : ""}</div>` +
+            `<div class="v">${Math.round(c.normalized_score)}<small>/100 · w.${Math.round(c.weight * 100)}</small></div>`,
+          "lg",
+        ),
+      );
+    });
+    // kick the width transition after a frame so each segment animates from 0
+    if (!reduce) {
+      const segs = stack.querySelectorAll<HTMLElement>(".seg");
+      requestAnimationFrame(() => {
+        score.contributions.forEach((c, i) => {
+          segs[i].style.width = `${c.contribution}%`;
+        });
+      });
+    }
+    // markets
     const markets = document.getElementById("r-markets")!;
     markets.innerHTML = "";
-    for (const m of rep.markets) {
-      const li = el(
-        "li",
-        `<strong>${m.country_name}</strong> <span class="mono faint">${m.score.toFixed(0)}</span><div class="muted">${m.rationale}</div>`,
+    rep.markets.forEach((m) => {
+      const card = el(
+        "div",
+        `<div class="mh"><div class="fl"><span class="fg">${flag(m.country_code)}</span>${m.country_name}</div>` +
+          `<div class="sc">${Math.round(m.score)}</div></div>` +
+          `<div class="mtrack"><div class="mfill"></div></div><p>${m.rationale}</p>`,
+        "mkt",
       );
-      markets.appendChild(li);
-    }
+      markets.appendChild(card);
+      const fill = card.querySelector<HTMLElement>(".mfill")!;
+      const w = `${Math.max(0, Math.min(100, m.score))}%`;
+      if (reduce) fill.style.width = w;
+      else requestAnimationFrame(() => (fill.style.width = w));
+    });
 
-    const price = document.getElementById("r-price")!;
-    price.innerHTML = `
-      <div class="price-band">${rep.price_band.currency} ${rep.price_band.low}–${rep.price_band.high}</div>
-      <p class="muted" style="font-size:0.85rem; margin-top:6px;">${rep.price_band.note ?? ""}</p>`;
+    // price + timing
+    const currencySym: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", JPY: "¥" };
+    const sym = currencySym[rep.currency] ?? `${rep.currency} `;
+    const priceTag =
+      score.tier.toLowerCase() === "strong"
+        ? t("price.premium")
+        : score.tier.toLowerCase() === "moderate"
+          ? t("price.mid")
+          : t("price.value");
+    document.getElementById("r-price")!.innerHTML =
+      `${sym}${rep.price_low} – ${sym}${rep.price_high} <span>${priceTag}</span>`;
+    document.getElementById("r-price-note")!.textContent = rep.price_note;
+    document.getElementById("r-window")!.textContent = rep.launch_label;
+    document.getElementById("r-window-note")!.textContent = rep.launch_peak_note;
 
-    const timing = document.getElementById("r-timing")!;
-    timing.innerHTML = `
-      <div class="price-band" style="font-size:1.3rem;">${rep.launch_window.label}</div>
-      <p class="muted" style="font-size:0.85rem; margin-top:6px;">${rep.launch_window.peak_note ?? ""}</p>`;
-
+    // recommendations
     const recs = document.getElementById("r-recs")!;
     recs.innerHTML = "";
-    for (const r of rep.recommendations ?? []) {
-      recs.appendChild(el("li", `<span class="muted">${r}</span>`));
-    }
+    rep.recommendations.forEach((r, i) => {
+      recs.appendChild(el("div", `<div class="n">${i + 1}</div><p>${r}</p>`, "rec"));
+    });
 
-    const cites = document.getElementById("r-citations")!;
+    // citations
+    const cites = document.getElementById("r-cites")!;
     cites.innerHTML = "";
-    for (const c of rep.citations ?? []) {
-      cites.appendChild(el("li", `${c.source} — ${c.detail} <span class="faint">(${c.as_of})</span>`));
+    rep.citations.forEach((c) => {
+      cites.appendChild(
+        el("div", `<div class="src">${c.source}</div><div class="dv">${c.detail}</div><div class="dt">${c.as_of}</div>`, "cite"),
+      );
+    });
+
+    // action bar
+    const slug = slugForId(a.id);
+    if (showActions) {
+      const actions = document.getElementById("r-actions")!;
+      actions.style.display = "flex";
+      document.getElementById("r-actions-summary")!.innerHTML =
+        `MOS <b>${total}/100</b> · ${rep.citations.length} ${t("rep.sources_n")} · ${t("rep.share")} <b>/r/${slug}</b>`;
+      const pdf = document.getElementById("r-pdf") as HTMLAnchorElement;
+      pdf.href = reportPdfUrl(a.id);
+      const shareBtn = document.getElementById("r-share") as HTMLButtonElement;
+      shareBtn.addEventListener("click", async () => {
+        const url = `${location.origin}/r/${slug}`;
+        try {
+          await navigator.clipboard.writeText(url);
+        } catch {
+          window.prompt("Share this link:", url);
+        }
+        toast(`${t("rep.copied")} · <code>${location.host}/r/${slug}</code>`);
+      });
     }
 
     state.style.display = "none";
     body.style.display = "block";
+  }
 
-    // wire the PDF action if present
-    const pdfLink = document.getElementById("r-pdf") as HTMLAnchorElement | null;
-    if (pdfLink) pdfLink.href = reportPdfUrl(a.id);
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
+  function toast(html: string) {
+    const t = document.getElementById("r-toast")!;
+    document.getElementById("r-toast-msg")!.innerHTML = html;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
   }
 
   function init() {
-    const root = document.querySelector(".report-root");
-    if (!root) return;
-    // id is the last path segment (works for /report/{id} and /r/{slug}).
-    const id = location.pathname.split("/").filter(Boolean).pop();
-    if (!id || id === "_") return;
+    const root = document.querySelector<HTMLElement>(".report-root");
+    if (!root || root.dataset.bound === "1") return;
+    root.dataset.bound = "1";
+
+    const parts = location.pathname.split("/").filter(Boolean);
+    const seg = parts[parts.length - 1];
+    if (!seg || seg === "_") return;
+
+    // A /r/<slug> URL carries the uuid hex (dashes stripped); reconstruct it.
+    // Derive from the path so it's correct even when mounted by the 404 fallback.
+    const isSlug = parts[0] === "r" || root.dataset.fromSlug === "1";
+    // Public share view (/r/) hides the action bar regardless of prop default.
+    const showActions = parts[0] === "r" ? false : root.dataset.showActions === "1";
+    const id = isSlug ? idFromSlug(seg) : seg;
 
     getAnalysis(id)
-      .then(render)
+      .then((a) => render(a, showActions))
       .catch((err) => {
         const state = document.getElementById("r-state");
         if (state) state.textContent = err instanceof Error ? err.message : "Failed to load report.";
