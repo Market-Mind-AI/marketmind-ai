@@ -1,33 +1,24 @@
-# MarketMind AI — convenience targets. These delegate to docker compose / uv.
+# MarketMind AI — frontend-only convenience targets.
+# The backend lives in the separate marketmind-core service (host port 8004);
+# this repo is just the Astro frontend that talks to it over HTTP.
 # Run `make help` for the list.
-
-COMPOSE ?= docker compose
 
 .DEFAULT_GOAL := help
 
-.PHONY: help up down logs ps build api-test fmt
+.PHONY: help install dev build preview
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
-up: ## Start the full stack (db + api + web) in the background
-	$(COMPOSE) up -d --build
+install: ## Install web dependencies
+	cd web && npm install
 
-down: ## Stop the stack and remove containers
-	$(COMPOSE) down
+dev: ## Start the Astro dev server (http://localhost:4321)
+	cd web && npm run dev
 
-logs: ## Tail logs from all services
-	$(COMPOSE) logs -f
+build: ## Build static output to web/dist/
+	cd web && npm run build
 
-ps: ## Show running services
-	$(COMPOSE) ps
-
-build: ## Build all service images
-	$(COMPOSE) build
-
-api-test: ## Run the api test suite (uv, run from ./api)
-	cd api && uv run pytest
-
-fmt: ## Format infra HCL
-	terraform -chdir=infra/terraform fmt -recursive
+preview: ## Preview the production build
+	cd web && npm run preview

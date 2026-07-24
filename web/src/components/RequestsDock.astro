@@ -1,0 +1,289 @@
+---
+// Persistent "pending analyses" dock, mounted in the Base layout so it survives
+// page navigation. Lists the user's analysis requests (from localStorage) with
+// live status icons driven by the Core's SSE stream; clicking one opens the
+// rich animated MOS breakdown modal.
+---
+
+<div class="dock" id="mm-dock">
+  <button class="dock-btn" id="mm-dock-btn" aria-expanded="false" aria-controls="mm-dock-panel">
+    <span class="dock-ic">≣</span>
+    <span data-i18n="dock.title">Analyses</span>
+    <span class="dock-badge" id="mm-dock-badge" hidden>0</span>
+  </button>
+  <div class="dock-panel" id="mm-dock-panel" hidden>
+    <div class="dock-head">
+      <span data-i18n="dock.title">Analyses</span>
+      <button class="dock-clear" id="mm-dock-clear" data-i18n="dock.clear">Clear finished</button>
+    </div>
+    <div class="dock-list" id="mm-dock-list"></div>
+    <div class="dock-empty mono" id="mm-dock-empty" data-i18n="dock.empty">No analyses yet.</div>
+  </div>
+</div>
+
+<style is:global>
+  /* dock */
+  .dock { position: fixed; right: 20px; bottom: 20px; z-index: 60; font-family: var(--font-sans); }
+  .dock-btn {
+    display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
+    padding: 11px 16px; border-radius: 999px; border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(24,27,23,.92), rgba(14,16,13,.96));
+    backdrop-filter: blur(12px); color: var(--ink-soft); font-size: 13.5px; font-weight: 600;
+    box-shadow: 0 10px 30px rgba(0,0,0,.4); transition: border-color .2s, transform .2s;
+  }
+  .dock-btn:hover { border-color: rgba(236,188,78,.4); transform: translateY(-1px); }
+  .dock-btn .dock-ic { font-size: 15px; color: var(--gold); }
+  .dock-badge {
+    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+    background: var(--gold); color: #1a1509; font-size: 11px; font-weight: 700;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .dock-panel {
+    position: absolute; right: 0; bottom: calc(100% + 10px); width: min(360px, 90vw);
+    max-height: min(60vh, 520px); overflow-y: auto; border: 1px solid var(--line);
+    border-radius: 16px; background: linear-gradient(180deg, rgba(22,25,21,.98), rgba(13,15,12,.99));
+    backdrop-filter: blur(16px); box-shadow: 0 20px 50px rgba(0,0,0,.55); padding: 10px;
+    animation: dockpop .18s var(--ease);
+  }
+  @keyframes dockpop { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .dock-head {
+    display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 10px;
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  }
+  .dock-clear { background: none; border: none; color: var(--faint); font-size: 10px; cursor: pointer; text-transform: uppercase; letter-spacing: .1em; }
+  .dock-clear:hover { color: var(--ink-soft); }
+  .dock-list { display: flex; flex-direction: column; gap: 6px; }
+  .dock-empty { color: var(--faint); font-size: 12px; padding: 10px 8px 6px; }
+  .dock-item {
+    display: flex; align-items: center; gap: 11px; padding: 11px 12px; border-radius: 12px;
+    border: 1px solid var(--line-2); background: rgba(255,255,255,.015); cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  .dock-item:hover { border-color: rgba(236,235,227,.22); background: rgba(255,255,255,.03); }
+  .dock-item .di-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; }
+  .dock-item .di-body { flex: 1; min-width: 0; }
+  .dock-item .di-title { font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dock-item .di-sub { font-family: var(--font-mono); font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .dock-item .di-x { color: var(--faint); font-size: 13px; padding: 2px 4px; border-radius: 6px; }
+  .dock-item .di-x:hover { color: #e96a4c; background: rgba(233,106,76,.1); }
+  .di-spin {
+    width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--line-2);
+    border-top-color: var(--gold); animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .di-done { color: var(--mint); font-size: 15px; }
+  .di-failed { color: #e96a4c; font-size: 15px; }
+
+  /* modal */
+  .bk-overlay {
+    position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 24px;
+    background: rgba(6,7,6,.72); backdrop-filter: blur(6px); animation: bkfade .2s var(--ease);
+  }
+  @keyframes bkfade { from { opacity: 0; } to { opacity: 1; } }
+  .bk-panel {
+    position: relative; width: min(860px, 100%); max-height: 90vh; overflow-y: auto;
+    border: 1px solid var(--line); border-radius: 20px; padding: 30px clamp(20px, 4vw, 40px) 40px;
+    background: radial-gradient(120% 80% at 0 0, rgba(95,208,173,.06), transparent 55%), linear-gradient(180deg, rgba(20,23,19,.99), rgba(12,14,11,1));
+    box-shadow: 0 30px 80px rgba(0,0,0,.6); animation: bkpop .24s var(--ease);
+  }
+  @keyframes bkpop { from { opacity: 0; transform: translateY(14px) scale(.99); } to { opacity: 1; transform: none; } }
+  .bk-close {
+    position: absolute; top: 16px; right: 16px; width: 34px; height: 34px; border-radius: 10px;
+    border: 1px solid var(--line); background: rgba(255,255,255,.03); color: var(--muted); cursor: pointer; font-size: 14px;
+  }
+  .bk-close:hover { color: var(--ink); border-color: rgba(236,235,227,.25); }
+  .bk-state { color: var(--muted); font-size: .9rem; padding: 30px 4px; display: flex; align-items: center; gap: 10px; }
+  .bk-spin {
+    width: 16px; height: 16px; flex: none; border-radius: 50%;
+    border: 2px solid var(--line-2); border-top-color: var(--gold); animation: spin 1s linear infinite;
+  }
+  .bk-header h2 { font-family: var(--font-display); font-weight: 450; font-size: clamp(24px,3.6vw,34px); line-height: 1.05; letter-spacing: -.015em; }
+  .bk-when { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+  .bk-asked {
+    margin-top: 14px; padding: 12px 15px; border-radius: 12px; border: 1px solid var(--line-2);
+    background: rgba(236,188,78,.05); font-size: 13.5px; color: var(--ink-soft);
+  }
+  .bk-asked b { color: var(--gold); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; }
+
+  .bk-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 22px 0 4px; }
+  .bk-tab {
+    display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; color: var(--ink-soft);
+    border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 13px; background: transparent;
+    transition: border-color .2s, background .2s, color .2s;
+  }
+  .bk-tab .fg { font-size: 15px; }
+  .bk-tab b { font-family: var(--font-mono); color: var(--gold); }
+  .bk-tab:hover { border-color: rgba(236,235,227,.28); }
+  .bk-tab.on { color: var(--ink); border-color: rgba(95,208,173,.5); background: rgba(95,208,173,.08); }
+
+  .bk-hero {
+    display: grid; grid-template-columns: auto 1fr; gap: 26px; align-items: center; margin-top: 20px;
+    padding: 22px; border: 1px solid var(--line); border-radius: 18px;
+    background: radial-gradient(110% 130% at 0 0, rgba(95,208,173,.08), transparent 55%);
+  }
+  @media (max-width: 560px) { .bk-hero { grid-template-columns: 1fr; justify-items: center; text-align: center; } }
+  .bk-gaugewrap { display: flex; flex-direction: column; align-items: center; }
+  .spdo .spdo-num { fill: var(--ink); font-family: var(--font-display); font-weight: 500; font-size: 34px; }
+  .bk-gaugecap { margin-top: -6px; }
+  .bk-mostag {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    border: 1px solid; border-radius: 999px; padding: 4px 11px;
+  }
+  .bk-heroflag { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 24px; font-weight: 450; }
+  .bk-heroflag .fg { font-size: 26px; }
+  .bk-herolbl { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 6px 0 10px; }
+  .bk-herotext p { font-size: 14px; color: var(--ink-soft); font-weight: 330; line-height: 1.6; }
+
+  .bk-sec { margin-top: 30px; }
+  .bk-sectitle {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--muted);
+    margin-bottom: 14px; display: flex; align-items: center; gap: 10px;
+  }
+  .bk-sectitle::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+  .bk-bars { display: grid; gap: 14px; }
+  .bk-row { }
+  .bk-rowhead { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .bk-lbl { font-size: 14px; color: var(--ink); font-weight: 500; }
+  .bk-score { font-family: var(--font-mono); font-size: 15px; color: var(--gold); font-weight: 600; }
+  .bk-score small { font-size: 10px; color: var(--muted); }
+  .bk-track { height: 7px; border-radius: 999px; background: rgba(255,255,255,.06); overflow: hidden; margin: 7px 0; }
+  .bk-fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--gold-deep), var(--mint)); }
+  .bk-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+  .bk-band, .bk-wt { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line-2); border-radius: 999px; padding: 2px 8px; }
+  .bk-expl { font-size: 12.5px; color: var(--ink-soft); margin-top: 6px; line-height: 1.55; font-weight: 330; }
+  .bk-ctx { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: 4px; }
+
+  .bk-narrative p { font-size: 15px; line-height: 1.7; color: var(--ink-soft); font-weight: 330; margin-bottom: 12px; }
+</style>
+
+<script>
+  import {
+    loadRequests,
+    patchRequest,
+    removeRequest,
+    subscribeStatus,
+    isTerminalStatus,
+    countryName,
+    type StoredRequest,
+  } from "../lib/api";
+  import { openAnalysisModal } from "../lib/breakdown-view";
+  import { t } from "../lib/i18n";
+
+  // Active SSE subscriptions, keyed by request id — module-level so they persist
+  // across Astro view-transition navigations (the script re-runs, this Map does not).
+  const subs = new Map<string, () => void>();
+
+  function statusIconHtml(status: string): string {
+    const s = status.toLowerCase();
+    if (s === "done") return `<span class="di-done">✓</span>`;
+    if (s === "failed") return `<span class="di-failed">✕</span>`;
+    return `<span class="di-spin"></span>`;
+  }
+
+  function statusLabel(status: string): string {
+    const s = status.toLowerCase();
+    if (s === "done") return t("dock.done");
+    if (s === "failed") return t("dock.failed");
+    if (s === "running") return t("dock.running");
+    return t("dock.pending");
+  }
+
+  function els() {
+    return {
+      dock: document.getElementById("mm-dock"),
+      btn: document.getElementById("mm-dock-btn"),
+      panel: document.getElementById("mm-dock-panel"),
+      list: document.getElementById("mm-dock-list"),
+      empty: document.getElementById("mm-dock-empty"),
+      badge: document.getElementById("mm-dock-badge"),
+      clear: document.getElementById("mm-dock-clear"),
+    };
+  }
+
+  function render(): void {
+    const { list, empty, badge } = els();
+    if (!list || !empty || !badge) return;
+    const reqs = loadRequests();
+    list.innerHTML = "";
+    empty.style.display = reqs.length ? "none" : "block";
+    const pending = reqs.filter((r) => !isTerminalStatus(r.status)).length;
+    badge.textContent = String(pending);
+    (badge as HTMLElement).hidden = pending === 0;
+
+    reqs.forEach((r: StoredRequest) => {
+      const item = document.createElement("div");
+      item.className = "dock-item";
+      item.dataset.id = r.id;
+      const markets = (r.countries ?? []).map(countryName).join(" · ");
+      item.innerHTML =
+        `<div class="di-ic">${statusIconHtml(r.status)}</div>` +
+        `<div class="di-body"><div class="di-title">${escapeHtml(r.title || "Analysis")}</div>` +
+        `<div class="di-sub">${escapeHtml(statusLabel(r.status))}${markets ? ` · ${escapeHtml(markets)}` : ""}</div></div>` +
+        `<span class="di-x" title="remove">✕</span>`;
+      item.addEventListener("click", (e) => {
+        if ((e.target as HTMLElement).classList.contains("di-x")) {
+          e.stopPropagation();
+          const sub = subs.get(r.id);
+          if (sub) { sub(); subs.delete(r.id); }
+          removeRequest(r.id);
+          render();
+          return;
+        }
+        openAnalysisModal(r.id);
+      });
+      list.appendChild(item);
+    });
+  }
+
+  function escapeHtml(s: string): string {
+    const d = document.createElement("div");
+    d.textContent = s ?? "";
+    return d.innerHTML;
+  }
+
+  function ensureSub(r: StoredRequest): void {
+    if (isTerminalStatus(r.status) || subs.has(r.id)) return;
+    const dispose = subscribeStatus(r.id, (status) => {
+      patchRequest(r.id, { status });
+      render();
+      if (isTerminalStatus(status)) {
+        const s = subs.get(r.id);
+        if (s) { s(); subs.delete(r.id); }
+      }
+    });
+    subs.set(r.id, dispose);
+  }
+
+  function subscribeAll(): void {
+    loadRequests().forEach(ensureSub);
+  }
+
+  function init(): void {
+    const { btn, panel, clear } = els();
+    if (!btn || !panel) return;
+    render();
+    subscribeAll();
+
+    if (btn.dataset.bound !== "1") {
+      btn.dataset.bound = "1";
+      btn.addEventListener("click", () => {
+        const open = panel.hasAttribute("hidden");
+        if (open) { panel.removeAttribute("hidden"); btn.setAttribute("aria-expanded", "true"); render(); }
+        else { panel.setAttribute("hidden", ""); btn.setAttribute("aria-expanded", "false"); }
+      });
+    }
+    if (clear && clear.dataset.bound !== "1") {
+      clear.dataset.bound = "1";
+      clear.addEventListener("click", () => {
+        loadRequests().filter((r) => isTerminalStatus(r.status)).forEach((r) => removeRequest(r.id));
+        render();
+      });
+    }
+  }
+
+  // Fired by the analyze flow after a new request is submitted.
+  window.addEventListener("mm:requests-changed", () => { render(); subscribeAll(); });
+
+  init();
+  document.addEventListener("astro:page-load", init);
+</script>

@@ -9,24 +9,12 @@ import ReportView from "../components/ReportView.astro";
 ---
 
 <Base title="MarketMind AI" activeTab="analyze">
-  <!-- report / share fallback -->
+  <!-- report / share fallback. Both /report/<id> and /r/<slug> land here on a
+       hard reload / deep-link under static output; ReportView reads the id from
+       the URL and polls the Core itself. -->
   <section class="screen" id="fb-report" style="display: none;">
     <div class="eyebrow" id="fb-report-eyebrow" style="display: none;">Shared report</div>
     <ReportView showActions={true} fromSlug={false} />
-  </section>
-
-  <!-- analyzing fallback -->
-  <section class="screen" id="fb-analyzing" style="display: none;">
-    <div class="eyebrow" data-i18n="an.eyebrow">Live analysis</div>
-    <div class="anhead">
-      <div class="pt product-thumb"></div>
-      <div>
-        <h2 class="product-title" id="fb-an-title" data-i18n="an.title">Analyzing your product…</h2>
-        <div class="meta" id="fb-an-meta"></div>
-      </div>
-    </div>
-    <div class="barwrap"><div class="b" id="fb-anbar"></div></div>
-    <p class="mono faint" id="fb-an-hint" style="margin-top: 18px; font-size: 0.82rem;">Resolving analysis…</p>
   </section>
 
   <!-- genuine 404 -->
@@ -86,15 +74,12 @@ import ReportView from "../components/ReportView.astro";
 </style>
 
 <script>
-  import { getAnalysis } from "../lib/api";
-
   function init() {
     const parts = location.pathname.split("/").filter(Boolean);
     const kind = parts[0];
     const seg = parts[1];
 
     const report = document.getElementById("fb-report")!;
-    const analyzing = document.getElementById("fb-analyzing")!;
     const notFound = document.getElementById("fb-404")!;
 
     // /report/<id> and /r/<slug> both mount the ReportView. The component reads
@@ -102,40 +87,6 @@ import ReportView from "../components/ReportView.astro";
     if ((kind === "report" || kind === "r") && seg && seg !== "_") {
       if (kind === "r") document.getElementById("fb-report-eyebrow")!.style.display = "flex";
       report.style.display = "block";
-      return;
-    }
-
-    if (kind === "analyzing" && seg && seg !== "_") {
-      analyzing.style.display = "block";
-      const id = seg;
-      const meta = document.getElementById("fb-an-meta")!;
-      meta.textContent = `analysis ${id.slice(0, 8)}`;
-      try {
-        const title = sessionStorage.getItem(`mm:title:${id}`);
-        if (title) document.getElementById("fb-an-title")!.textContent = title;
-      } catch {
-        /* ignore */
-      }
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const minDelay = reduce ? 0 : 1400;
-      const started = Date.now();
-      getAnalysis(id)
-        .then((a) => {
-          const wait = Math.max(0, minDelay - (Date.now() - started));
-          setTimeout(() => {
-            if (a.status.toLowerCase() === "failed") {
-              document.getElementById("fb-an-hint")!.textContent = a.failure_reason ?? "Analysis failed.";
-            } else if (a.category) {
-              meta.textContent = `${a.category} · analysis ${id.slice(0, 8)}`;
-              window.location.assign(`/report/${id}`);
-            } else {
-              window.location.assign(`/report/${id}`);
-            }
-          }, wait);
-        })
-        .catch(() => {
-          document.getElementById("fb-an-hint")!.textContent = "Could not reach the analysis service.";
-        });
       return;
     }
 

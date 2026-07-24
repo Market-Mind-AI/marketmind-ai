@@ -1,10 +1,15 @@
-# MarketMind AI
-
-[![CI](https://github.com/mikews93/marketmind-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/mikews93/marketmind-ai/actions/workflows/ci.yml)
+# MarketMind AI — Frontend
 
 > **Framework de Inteligencia Comercial basado en IA Generativa** para identificar oportunidades de mercado a partir de datos públicos globales.
 
-MarketMind AI turns a single product (images + a free-text description) — or a whole catalog — into an **explainable market-opportunity report**: a Market Opportunity Score (MOS), the best target markets, suggested pricing, and the optimal launch window, every claim backed by a cited public data source.
+This repository is the **Astro frontend** for MarketMind. It turns a single
+product (a photo + a free-text description) into an **explainable market-opportunity
+report**: a Market Opportunity Score (MOS) per country, the resulting ranking, and
+a business narrative — every number computed by the backend, never by the browser.
+
+The backend is the separate **marketmind-core** service (FastAPI, host port
+`8004`); this app talks to it over HTTP. The former bundled `api/` prototype has
+been removed — the frontend now integrates directly with the real Core.
 
 Final project (TFM) for the *Máster en Ingeniería y Desarrollo de Soluciones de IA Generativa* — **EBIS Business Techschool**.
 
@@ -12,51 +17,51 @@ Final project (TFM) for the *Máster en Ingeniería y Desarrollo de Soluciones d
 - **Miguel Antonio Blanco Salcedo** — [@mikews93](https://github.com/mikews93)
 - **Álvaro Augusto De Marco Neto** — [@ironeto](https://github.com/ironeto)
 
-## What it does
+## Flow (matches the Core contract)
 
-1. **Upload** product images + a description (the hero flow), or a CSV/Excel catalog (batch mode).
-2. **Extract** product attributes with a vision LLM (no forms to fill).
-3. **Enrich** each product with public global signals — demand trends, macro/geographic data, and a marketplace signal.
-4. **Score** a transparent, pure-Python **Market Opportunity Score (MOS)**.
-5. **Report** explainable recommendations (markets · pricing · timing) with **live streaming progress**, an inline result, a **downloadable PDF**, and a **shareable link**.
+1. **Upload** a product photo + a short description and pick the **target markets** (ISO3 countries).
+2. **Identify** — `POST /catalog/identify-image` runs a vision LLM and returns the
+   identified product plus, per country, the curated search vocabulary and the
+   ranked *reference-market candidates*.
+3. **Review & edit** — the user confirms/corrects every field (name, brand,
+   category, price, per-country search terms, reference candidates) before any
+   paid data collection runs. This is the human-curation gate the Core is designed around.
+4. **Analyze** — `POST /analyze` (202 Accepted) kicks off the background pipeline:
+   ensure data freshness → Cap. 4 indicators → Cap. 5 MOS (per country).
+5. **Report** — the app polls `GET /analyze/{request_id}` and renders the MOS
+   ranking, each country's interpretation band, and the LLM business narrative.
 
-## Architecture (at a glance)
+## Setup
 
-A deterministic enrichment **DAG** with two LLM reasoning steps — *not* an autonomous agent swarm.
+```bash
+cd web
+npm install
+cp .env.example .env    # PUBLIC_API_BASE=http://localhost:8004
+npm run dev             # http://localhost:4321
+```
 
-| Layer | Choice |
-|---|---|
-| Frontend | **Astro + View Transitions API** (app-like UX) |
-| API | **FastAPI** (async) + **SSE** live progress |
-| Orchestration | **LangGraph** `StateGraph` |
-| Vision / extraction | **Claude Haiku 4.5** |
-| Report generation | **Claude Sonnet 4.6** |
-| Scoring | Pure **Python** (winsorize → min-max → weighted sum) |
-| Data | World Bank · IMF · DataForSEO (Trends) · eBay Browse |
-| Stores | PostgreSQL (+ pgvector) · object storage · ChromaDB (optional) |
-| Report → PDF | WeasyPrint |
-| Infra | **Terraform** (cloud-agnostic) · docker-compose for local |
+The Core must be running on `PUBLIC_API_BASE` (default `http://localhost:8004`)
+with CORS allowing the dev origin (`http://localhost:4321`).
 
-Full detail: **[docs/architecture-plan.md](docs/architecture-plan.md)**. Original proposal: **[docs/proposal.md](docs/proposal.md)**.
+Convenience targets from the repo root: `make install`, `make dev`, `make build`, `make preview`.
+
+## Backend contract (`web/src/lib/api.ts`)
+
+- `POST /catalog/identify-image` — `{ image_base64, image_media_type, hint_text, countries }`
+- `POST /analyze` — the confirmed identify-image fields + `countries` → `{ request_id, status }`
+- `GET /analyze/{request_id}` — poll until `status == "done"` → `{ result: MosResult[], explanation, ... }`
 
 ## Prototypes
 
-Clickable HTML prototypes (open in a Chromium browser for the View Transitions):
+Clickable HTML prototypes (kept as design references):
 
-- **[`marketmind-app.html`](marketmind-app.html)** — the product UI: single-product upload → live analysis → report, plus the CSV batch mode with a sortable ranked table.
-- **[`marketmind-plan.html`](marketmind-plan.html)** — the architecture & plan as a visual one-pager.
+- **[`marketmind-app.html`](marketmind-app.html)** — the original product UI concept.
+- **[`marketmind-plan.html`](marketmind-plan.html)** — the architecture & plan one-pager.
 
-## Planned structure
+## Tech
 
-```
-marketmind-ai/
-├── api/        # FastAPI + LangGraph pipeline, connectors, MOS engine
-├── web/        # Astro frontend (View Transitions)
-├── infra/      # Terraform modules + docker-compose
-├── docs/       # architecture plan, proposal
-└── *.html      # interactive prototypes
-```
-
-## Status
-
-🚧 Early stage — architecture and prototypes defined; implementation kicking off (see the roadmap in the architecture plan).
+| Layer | Choice |
+|---|---|
+| Frontend | **Astro + View Transitions API** |
+| State/flow | client-side (static output; dynamic routes resolved client-side) |
+| Backend | **marketmind-core** (separate repo/service, FastAPI, port 8004) |

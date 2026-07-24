@@ -3,25 +3,24 @@ import Base from "../layouts/Base.astro";
 ---
 
 <Base title="MarketMind AI — Analyze a Product" activeTab="analyze">
+  <!-- ============================ UPLOAD ============================ -->
   <section class="screen" id="screen-upload">
     <div class="eyebrow" data-i18n="idx.eyebrow">New analysis</div>
     <h1 data-i18n-html="idx.h1">Analyze a <em>product</em></h1>
     <p class="sub" data-i18n="idx.sub">
-      Drop a few product photos and describe it in your own words. MarketMind reviews it against
-      global demand, growth and marketplace signals — and writes you an explainable opportunity
-      report.
+      Add a product photo, describe it, and pick the target markets.
     </p>
 
     <form id="analyze-form" class="card uploadgrid">
       <div class="drop">
-        <div class="lab"><span data-i18n="idx.images">Product images</span><span id="imgcount">0 added</span></div>
+        <div class="lab"><span data-i18n="idx.images">Product image</span><span id="imgcount">0 added</span></div>
         <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Add product images">
           <input id="file-input" type="file" accept="image/*" multiple hidden />
           <div class="thumbs" id="thumbs"></div>
           <div class="dzcta">
             <div class="ic">+</div>
-            <b data-i18n="idx.drop">Drag photos here, or click to add</b>
-            <small data-i18n="idx.dropsmall">JPG / PNG · up to 8 images · resized client-side</small>
+            <b data-i18n="idx.drop">Drag a photo here, or click to add</b>
+            <small data-i18n="idx.dropsmall">JPG / PNG · the first image is used for identification</small>
           </div>
         </div>
       </div>
@@ -30,41 +29,59 @@ import Base from "../layouts/Base.astro";
         <div class="lab"><span data-i18n="idx.description">Description</span><span data-i18n="idx.freetext">free text</span></div>
         <textarea id="desc" name="description" spellcheck="false" required
           data-i18n-ph="idx.placeholder"
-          placeholder="Describe your product in a sentence or two…">Eco-friendly bamboo & natural cork yoga mat. Non-slip even when wet, 4mm thick, biodegradable, lightweight with a carry strap. Aimed at home-practice and studio users who care about sustainable materials.</textarea>
+          placeholder="Describe your product in a sentence or two…">Air fryer 5.5L, digital touchscreen, rapid hot-air cooking with little to no oil, non-stick basket, multiple presets for fries, chicken and vegetables.</textarea>
       </div>
     </form>
 
+    <!-- target markets -->
+    <div class="card markets-card">
+      <div class="lab"><span data-i18n="idx.markets">Target markets</span><span id="mkt-count">0</span></div>
+      <div class="hint markets-hint" data-i18n="idx.markets.hint">Pick the countries to score.</div>
+      <div class="cpick" id="cpick"></div>
+    </div>
+
     <div class="runbar">
-      <div class="hint" data-i18n-html="idx.hint">Vision model infers <b>category &amp; attributes</b> — no forms to fill.</div>
+      <div class="hint" data-i18n-html="idx.hint">Vision + enrichment identify the product — <b>you confirm</b> first.</div>
       <button class="btn" id="analyzeBtn" type="submit" form="analyze-form">
-        <span data-i18n="idx.btn">Analyze product</span> <span class="ar">→</span>
+        <span data-i18n="idx.btn">Identify product</span> <span class="ar">→</span>
       </button>
     </div>
     <div id="status" class="mono faint" style="margin-top: 14px; font-size: 0.8rem; min-height: 1.2em;"></div>
   </section>
 
-  <!-- Live-analysis loading state, shown in place after submit (no navigation,
-       so it renders reliably under static output), then -> /report/{id}. -->
-  <section class="screen" id="screen-analyzing" style="display: none;">
-    <div class="eyebrow" data-i18n="an.eyebrow">Live analysis</div>
-    <div class="anhead">
-      <div class="pt product-thumb" id="an-thumb"></div>
-      <div>
-        <h2 class="product-title" id="an-title" data-i18n="an.title">Analyzing your product…</h2>
-        <div class="meta" id="an-meta" data-i18n="an.meta">running the pipeline · streaming</div>
+  <!-- ============================ REVIEW ============================ -->
+  <section class="screen" id="screen-review" style="display: none;">
+    <div class="eyebrow" data-i18n="rev.eyebrow">Review &amp; confirm</div>
+    <h1 data-i18n="rev.title">Confirm before analyzing</h1>
+    <p class="sub" data-i18n="rev.sub">Correct anything the model got wrong. Nothing is collected until you confirm.</p>
+
+    <!-- identity -->
+    <div class="card rev-card">
+      <div class="sectitle" data-i18n="rev.identity">Product identity</div>
+      <div class="idgrid">
+        <label class="fld fld-2"><span data-i18n="rev.name">Product name</span><input id="f-name" type="text" /></label>
+        <label class="fld"><span data-i18n="rev.brand">Brand</span><input id="f-brand" type="text" /></label>
+        <label class="fld"><span data-i18n="rev.category">Category</span><input id="f-category" type="text" /></label>
+        <label class="fld"><span data-i18n="rev.price">Est. price</span><input id="f-price" type="number" step="0.01" min="0" /></label>
+        <label class="fld"><span data-i18n="rev.currency">Currency</span><input id="f-currency" type="text" maxlength="3" /></label>
+        <label class="fld"><span data-i18n="rev.agemin">Age min</span><input id="f-agemin" type="number" min="0" /></label>
+        <label class="fld"><span data-i18n="rev.agemax">Age max</span><input id="f-agemax" type="number" min="0" /></label>
       </div>
     </div>
-    <div class="barwrap"><div class="b" id="anbar"></div></div>
-    <div class="steps" id="steps">
-      <div class="st" data-res-key="res.attrs"><div class="dotc">✓</div><div class="sl" data-i18n="an.step1">Reading product images (vision)</div><div class="res"></div></div>
-      <div class="st" data-res-key="res.classified"><div class="dotc">✓</div><div class="sl" data-i18n="an.step2">Classifying product &amp; attributes</div><div class="res"></div></div>
-      <div class="st" data-res-key="res.trend"><div class="dotc">✓</div><div class="sl" data-i18n="an.step3">Google Trends — demand trajectory</div><div class="res"></div></div>
-      <div class="st" data-res-key="res.markets"><div class="dotc">✓</div><div class="sl" data-i18n="an.step4">World Bank + IMF — growth &amp; geography</div><div class="res"></div></div>
-      <div class="st" data-res-key="res.live"><div class="dotc">✓</div><div class="sl" data-i18n="an.step5">eBay marketplace — live demand signal</div><div class="res"></div></div>
-      <div class="st" data-res-key="res.scored"><div class="dotc">✓</div><div class="sl" data-i18n="an.step6">Scoring Market Opportunity (MOS)</div><div class="res"></div></div>
-      <div class="st" data-res-key="res.ready"><div class="dotc">✓</div><div class="sl" data-i18n="an.step7">Writing explainable report</div><div class="res"></div></div>
+
+    <!-- per-market vocabulary -->
+    <div class="card rev-card">
+      <div class="sectitle" data-i18n="rev.markets">Per-market search vocabulary</div>
+      <div id="rev-markets" class="rev-markets"></div>
     </div>
-    <div id="an-error" class="an-error" style="display: none;"></div>
+
+    <div class="runbar">
+      <button class="btn ghost" id="backBtn" type="button"><span class="ar">←</span> <span data-i18n="rev.back">Back</span></button>
+      <button class="btn" id="confirmBtn" type="button">
+        <span data-i18n="rev.analyze">Confirm &amp; analyze</span> <span class="ar">→</span>
+      </button>
+    </div>
+    <div id="rev-status" class="mono faint" style="margin-top: 14px; font-size: 0.8rem; min-height: 1.2em;"></div>
   </section>
 </Base>
 
@@ -76,21 +93,10 @@ import Base from "../layouts/Base.astro";
     margin-top: 30px;
   }
   @media (max-width: 760px) {
-    .uploadgrid {
-      grid-template-columns: 1fr;
-    }
+    .uploadgrid { grid-template-columns: 1fr; }
   }
-  .drop,
-  .descbox {
-    padding: 22px;
-    display: flex;
-    flex-direction: column;
-  }
-  /* Description fills the column height (matches the image side), like the prototype. */
-  .descbox textarea {
-    flex: 1;
-    min-height: 230px;
-  }
+  .drop, .descbox { padding: 22px; display: flex; flex-direction: column; }
+  .descbox textarea { flex: 1; min-height: 200px; }
   .lab {
     font-family: var(--font-mono);
     font-size: 10.5px;
@@ -111,185 +117,175 @@ import Base from "../layouts/Base.astro";
     gap: 14px;
     transition: border-color 0.3s, background 0.3s;
     cursor: pointer;
-    min-height: 230px;
+    min-height: 200px;
   }
-  .dropzone:hover,
-  .dropzone:focus,
-  .dropzone.drag {
+  .dropzone:hover, .dropzone:focus, .dropzone.drag {
     border-color: rgba(236, 188, 78, 0.5);
     background: rgba(236, 188, 78, 0.03);
     outline: none;
   }
-  .thumbs {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 9px;
-  }
+  .thumbs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
   .thumb {
-    aspect-ratio: 1;
-    border-radius: 10px;
-    position: relative;
-    overflow: hidden;
-    border: 1px solid var(--line);
-    display: flex;
-    align-items: flex-end;
+    aspect-ratio: 1; border-radius: 10px; position: relative; overflow: hidden;
+    border: 1px solid var(--line); display: flex; align-items: flex-end;
     animation: pop 0.4s var(--ease);
   }
-  .thumb img {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  @keyframes pop {
-    from {
-      opacity: 0;
-      transform: scale(0.86);
-    }
-    to {
-      opacity: 1;
-      transform: none;
-    }
-  }
+  .thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+  @keyframes pop { from { opacity: 0; transform: scale(0.86); } to { opacity: 1; transform: none; } }
   .thumb .cap {
-    position: relative;
-    z-index: 1;
-    font-family: var(--font-mono);
-    font-size: 9px;
-    color: rgba(255, 255, 255, 0.82);
-    padding: 5px 6px;
+    position: relative; z-index: 1; font-family: var(--font-mono); font-size: 9px;
+    color: rgba(255, 255, 255, 0.82); padding: 5px 6px;
     background: linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent);
-    width: 100%;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .dzcta {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    color: var(--muted);
-    text-align: center;
-    padding: 18px 0;
-    margin-top: auto;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; color: var(--muted); text-align: center; padding: 18px 0; margin-top: auto;
   }
   .dzcta .ic {
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    border: 1px solid var(--line);
-    display: grid;
-    place-items: center;
-    font-size: 20px;
-    color: var(--gold);
+    width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line);
+    display: grid; place-items: center; font-size: 20px; color: var(--gold);
     background: rgba(236, 188, 78, 0.05);
   }
-  .dzcta b {
-    color: var(--ink-soft);
-    font-weight: 600;
-    font-size: 14px;
+  .dzcta b { color: var(--ink-soft); font-weight: 600; font-size: 14px; }
+  .dzcta small { font-size: 12px; }
+
+  /* country picker */
+  .markets-card { padding: 22px; margin-top: 16px; }
+  .markets-hint { margin-bottom: 14px; }
+  .cpick { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cpick .cchip {
+    display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+    font-size: 13px; color: var(--ink-soft);
+    border: 1px solid var(--line-2); border-radius: 999px; padding: 7px 13px;
+    background: transparent; transition: border-color .2s, background .2s, color .2s;
+    user-select: none;
   }
-  .dzcta small {
-    font-size: 12px;
+  .cpick .cchip .fg { font-size: 15px; }
+  .cpick .cchip:hover { border-color: rgba(236, 235, 227, 0.28); }
+  .cpick .cchip.on {
+    color: var(--ink); border-color: rgba(95, 208, 173, 0.5);
+    background: rgba(95, 208, 173, 0.08);
   }
+
   .runbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-top: 18px;
-    flex-wrap: wrap;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; margin-top: 18px; flex-wrap: wrap;
   }
-  .hint {
-    font-size: 13px;
-    color: var(--muted);
-    font-family: var(--font-mono);
+  .hint { font-size: 13px; color: var(--muted); font-family: var(--font-mono); }
+  .hint b { color: var(--mint); }
+
+  /* button loading spinner */
+  .btn.loading { pointer-events: none; opacity: 0.9; display: inline-flex; align-items: center; gap: 9px; }
+  .btnspin {
+    width: 15px; height: 15px; flex: none; border-radius: 50%;
+    border: 2px solid rgba(0, 0, 0, 0.25); border-top-color: currentColor;
+    animation: btnspin 0.8s linear infinite;
   }
-  .hint b {
-    color: var(--mint);
+  @keyframes btnspin { to { transform: rotate(360deg); } }
+
+  /* review */
+  .rev-card { padding: 22px; margin-top: 16px; }
+  .rev-card .sectitle {
+    font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 16px;
+    display: flex; align-items: center; gap: 10px;
   }
+  .rev-card .sectitle::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+  .rev-card .hint { margin: -8px 0 16px; }
+  .idgrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  @media (max-width: 720px) { .idgrid { grid-template-columns: repeat(2, 1fr); } }
+  .fld { display: flex; flex-direction: column; gap: 6px; }
+  .fld.fld-2 { grid-column: span 2; }
+  .fld > span {
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .fld input, .fld textarea, .mkt-edit input, .mkt-edit textarea {
+    background: rgba(255, 255, 255, 0.02); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 12px; color: var(--ink);
+    font-family: inherit; font-size: 14px; width: 100%;
+  }
+  .fld input:focus, .mkt-edit input:focus, .mkt-edit textarea:focus {
+    outline: none; border-color: rgba(236, 188, 78, 0.5);
+  }
+  .rev-markets { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (max-width: 720px) { .rev-markets { grid-template-columns: 1fr; } }
+  .mkt-edit {
+    border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 12px; background: rgba(255, 255, 255, 0.015);
+  }
+  .mkt-edit .mh { display: flex; align-items: center; gap: 10px; }
+  .mkt-edit .mh .fg { font-size: 20px; }
+  .mkt-edit .mh b { font-size: 15px; }
+  .mkt-edit .mh .conf {
+    margin-left: auto; font-family: var(--font-mono); font-size: 11px; color: var(--faint);
+  }
+  .mkt-edit label { display: flex; flex-direction: column; gap: 5px; }
+  .mkt-edit label > span {
+    font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  .mkt-edit textarea { min-height: 46px; resize: vertical; }
 </style>
 
 <script>
-  import { createAnalysis, slugForId } from "../lib/api";
+  import {
+    identifyImage,
+    analyze,
+    fileToImagePayload,
+    slugForId,
+    saveRequest,
+    COUNTRIES,
+    DEFAULT_COUNTRIES,
+    countryName,
+    flag,
+    type IdentifyImageResult,
+    type LocalizedMarket,
+    type ReferenceMarket,
+  } from "../lib/api";
   import { t } from "../lib/i18n";
 
-  // gradient palette for thumbnails (mirrors the prototype atmosphere)
   const PALETTE = [
     "linear-gradient(135deg,#2f4636,#7da06d)",
     "linear-gradient(135deg,#3a3326,#b89a5e)",
     "linear-gradient(135deg,#26343a,#5e93b8)",
     "linear-gradient(135deg,#3a2630,#b85e86)",
-    "linear-gradient(135deg,#2a3a36,#5ea98f)",
-    "linear-gradient(135deg,#34302a,#a8845e)",
   ];
 
-  // Play the live-analysis step animation IN PLACE on this page, then run the
-  // callback (navigate to the report). Done here — not as a separate route —
-  // because dynamic routes 404 on hard navigation under `output: static`.
-  function showAnalyzing(desc: string, file: File | undefined, done: () => void) {
-    const upload = document.getElementById("screen-upload");
-    const an = document.getElementById("screen-analyzing");
-    if (!an) {
-      done();
-      return;
-    }
-    if (upload) upload.style.display = "none";
-    an.style.display = "block";
+  // Flow state (persists — no navigation between upload and review).
+  let files: File[] = [];
+  let selected = new Set<string>(DEFAULT_COUNTRIES);
+  let identified: IdentifyImageResult | null = null;
+  let userPrompt = ""; // the buyer's free-text description — carried through to /analyze
 
-    const title = document.getElementById("an-title");
-    if (title) {
-      const d = desc.trim();
-      title.textContent = d
-        ? d.length > 46
-          ? `${d.slice(0, 46).trim()}…`
-          : d
-        : t("an.title");
-    }
-    const thumb = document.getElementById("an-thumb");
-    if (thumb && file) {
-      thumb.style.background = `center / cover no-repeat url(${URL.createObjectURL(file)})`;
-    }
-    window.scrollTo({ top: 0, behavior: "smooth" });
-
-    const steps = Array.from(an.querySelectorAll<HTMLDivElement>(".st"));
-    const bar = document.getElementById("anbar") as HTMLDivElement | null;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-    if (reduce) {
-      steps.forEach((s) => s.classList.add("done"));
-      if (bar) bar.style.width = "100%";
-      setTimeout(done, 350);
-      return;
-    }
-
-    let i = 0;
-    const tick = () => {
-      if (i > 0) {
-        const prev = steps[i - 1];
-        prev.classList.remove("run");
-        prev.classList.add("done");
-        const res = prev.querySelector<HTMLDivElement>(".res");
-        if (res) res.textContent = prev.dataset.resKey ? t(prev.dataset.resKey) : "";
-      }
-      if (bar) bar.style.width = `${Math.round((i / steps.length) * 100)}%`;
-      if (i < steps.length) {
-        steps[i].classList.add("run");
-        i++;
-        setTimeout(tick, 600 + Math.random() * 360);
-      } else {
-        if (bar) bar.style.width = "100%";
-        setTimeout(done, 480);
-      }
-    };
-    setTimeout(tick, 320);
+  function esc(s: string): string {
+    return s.replace(/[&<>"]/g, (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c,
+    );
   }
 
-  // Re-run on every astro:page-load so view-transition navigations rebind.
-  function init() {
+  // Loading state for an action button: swap its content for a spinner + label,
+  // disable it, and restore on completion. Prevents the "did it freeze?" feel
+  // during the (slow) identify and the analyze submit.
+  function setLoading(btn: HTMLButtonElement, on: boolean, label?: string): void {
+    if (on) {
+      if (!btn.dataset.orig) btn.dataset.orig = btn.innerHTML;
+      btn.classList.add("loading");
+      btn.disabled = true;
+      btn.innerHTML = `<span class="btnspin"></span><span>${esc(label ?? "")}</span>`;
+    } else {
+      btn.classList.remove("loading");
+      btn.disabled = false;
+      if (btn.dataset.orig) {
+        btn.innerHTML = btn.dataset.orig;
+        delete btn.dataset.orig;
+      }
+    }
+  }
+
+  /* ---------- upload screen ---------- */
+  function bindUpload() {
     const form = document.getElementById("analyze-form") as HTMLFormElement | null;
     if (!form || form.dataset.bound === "1") return;
     form.dataset.bound = "1";
@@ -301,28 +297,24 @@ import Base from "../layouts/Base.astro";
     const statusEl = document.getElementById("status")!;
     const submitBtn = document.getElementById("analyzeBtn") as HTMLButtonElement;
 
-    let files: File[] = [];
-
-    // Localize the initial "0 added" count (static markup is English).
     imgcount.textContent = `${files.length} ${t("idx.added")}`;
 
     function renderThumbs() {
       thumbs.innerHTML = "";
       files.slice(0, 8).forEach((f, i) => {
-        const t = document.createElement("div");
-        t.className = "thumb";
-        t.style.background = PALETTE[i % PALETTE.length];
-        // First thumb morphs into the analyzing/report header.
-        if (i === 0) t.style.viewTransitionName = "product-thumb";
+        const node = document.createElement("div");
+        node.className = "thumb";
+        node.style.background = PALETTE[i % PALETTE.length];
+        if (i === 0) node.style.viewTransitionName = "product-thumb";
         const img = document.createElement("img");
         img.src = URL.createObjectURL(f);
         img.alt = f.name;
         const cap = document.createElement("div");
         cap.className = "cap";
         cap.textContent = f.name;
-        t.appendChild(img);
-        t.appendChild(cap);
-        thumbs.appendChild(t);
+        node.appendChild(img);
+        node.appendChild(cap);
+        thumbs.appendChild(node);
       });
       imgcount.textContent = `${files.length} ${t("idx.added")}`;
     }
@@ -338,55 +330,231 @@ import Base from "../layouts/Base.astro";
     dropzone.addEventListener("click", () => fileInput.click());
     dropzone.addEventListener("keydown", (e) => {
       const k = (e as KeyboardEvent).key;
-      if (k === "Enter" || k === " ") {
-        e.preventDefault();
-        fileInput.click();
-      }
+      if (k === "Enter" || k === " ") { e.preventDefault(); fileInput.click(); }
     });
     fileInput.addEventListener("change", () => addFiles(fileInput.files));
-
     ["dragenter", "dragover"].forEach((evt) =>
-      dropzone.addEventListener(evt, (e) => {
-        e.preventDefault();
-        dropzone.classList.add("drag");
-      }),
+      dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.add("drag"); }),
     );
     ["dragleave", "drop"].forEach((evt) =>
-      dropzone.addEventListener(evt, (e) => {
-        e.preventDefault();
-        dropzone.classList.remove("drag");
-      }),
+      dropzone.addEventListener(evt, (e) => { e.preventDefault(); dropzone.classList.remove("drag"); }),
     );
     dropzone.addEventListener("drop", (e) => addFiles((e as DragEvent).dataTransfer?.files ?? null));
+
+    // country picker
+    const cpick = document.getElementById("cpick")!;
+    const mktCount = document.getElementById("mkt-count")!;
+    function renderCount() { mktCount.textContent = String(selected.size); }
+    cpick.innerHTML = "";
+    COUNTRIES.forEach((c) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "cchip" + (selected.has(c.iso3) ? " on" : "");
+      chip.dataset.iso3 = c.iso3;
+      chip.innerHTML = `<span class="fg">${flag(c.iso2)}</span>${esc(c.name)}`;
+      chip.addEventListener("click", () => {
+        if (selected.has(c.iso3)) { selected.delete(c.iso3); chip.classList.remove("on"); }
+        else { selected.add(c.iso3); chip.classList.add("on"); }
+        renderCount();
+      });
+      cpick.appendChild(chip);
+    });
+    renderCount();
 
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const desc = (document.getElementById("desc") as HTMLTextAreaElement).value.trim();
-      if (!desc) {
-        statusEl.textContent = t("idx.err.desc");
-        return;
-      }
-      submitBtn.disabled = true;
-      statusEl.textContent = "submitting…";
+      if (!desc) { statusEl.textContent = t("idx.err.desc"); return; }
+      if (files.length === 0) { statusEl.textContent = t("idx.err.img"); return; }
+      if (selected.size === 0) { statusEl.textContent = t("idx.err.markets"); return; }
+
+      userPrompt = desc;
+      setLoading(submitBtn, true, t("idx.identifying"));
+      statusEl.textContent = t("idx.identifying.hint");
       try {
-        const res = await createAnalysis(desc, files);
-        try {
-          sessionStorage.setItem(`mm:slug:${res.analysis_id}`, res.slug ?? slugForId(res.analysis_id));
-        } catch {
-          /* sessionStorage may be unavailable */
-        }
+        const { base64, mediaType } = await fileToImagePayload(files[0]);
+        identified = await identifyImage({
+          imageBase64: base64,
+          mediaType,
+          hintText: desc,
+          countries: Array.from(selected),
+        });
         statusEl.textContent = "";
-        // Show the live-analysis animation in place, then open the report.
-        showAnalyzing(desc, files[0], () =>
-          window.location.assign(`/report/${res.analysis_id}`),
-        );
+        showReview();
       } catch (err) {
         statusEl.textContent = err instanceof Error ? err.message : t("idx.err.failed");
-        submitBtn.disabled = false;
+      } finally {
+        setLoading(submitBtn, false);
       }
     });
   }
 
+  /* ---------- review screen ---------- */
+  function showReview() {
+    if (!identified) return;
+    const up = document.getElementById("screen-upload");
+    const rev = document.getElementById("screen-review");
+    if (up) up.style.display = "none";
+    if (rev) rev.style.display = "block";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+
+    (document.getElementById("f-name") as HTMLInputElement).value = identified.product_name ?? "";
+    (document.getElementById("f-brand") as HTMLInputElement).value = identified.brand ?? "";
+    (document.getElementById("f-category") as HTMLInputElement).value = identified.category ?? "";
+    (document.getElementById("f-price") as HTMLInputElement).value =
+      identified.estimated_price != null ? String(identified.estimated_price) : "";
+    (document.getElementById("f-currency") as HTMLInputElement).value = identified.price_currency ?? "";
+    (document.getElementById("f-agemin") as HTMLInputElement).value =
+      identified.target_age_min != null ? String(identified.target_age_min) : "";
+    (document.getElementById("f-agemax") as HTMLInputElement).value =
+      identified.target_age_max != null ? String(identified.target_age_max) : "";
+
+    // per-market vocabulary — one card per requested country
+    const lm = identified.localized_markets ?? {};
+    const marketsEl = document.getElementById("rev-markets")!;
+    marketsEl.innerHTML = "";
+    Array.from(selected).forEach((iso3) => {
+      const m: Partial<LocalizedMarket> = lm[iso3] ?? {};
+      marketsEl.appendChild(
+        marketCard({
+          key: iso3,
+          title: countryName(iso3),
+          flagCode: iso3,
+          primary: m.primary_name ?? "",
+          terms: m.search_terms ?? [],
+          excluded: m.excluded_terms ?? [],
+          confidence: m.confidence,
+        }),
+      );
+    });
+    // Reference-market candidates are NOT shown for review — too hard to curate;
+    // we trust what the LLM proposed and pass them straight through to /analyze.
+    // The user only confirms their own target markets (above).
+  }
+
+  function marketCard(o: {
+    key: string; title: string; flagCode: string;
+    primary: string; terms: string[]; excluded: string[];
+    confidence?: number;
+  }): HTMLElement {
+    const card = document.createElement("div");
+    card.className = "mkt-edit";
+    card.dataset.key = o.key;
+    const conf = o.confidence != null ? `${Math.round(o.confidence * 100)}% ${t("rev.conf")}` : "";
+    card.innerHTML =
+      `<div class="mh"><span class="fg">${flag(o.flagCode)}</span><b>${esc(o.title)}</b><span class="conf">${conf}</span></div>` +
+      `<label><span>${t("rev.primary")}</span><input type="text" data-field="primary" value="${esc(o.primary)}" /></label>` +
+      `<label><span>${t("rev.terms")} · ${t("rev.commas")}</span><textarea data-field="terms">${esc(o.terms.join(", "))}</textarea></label>` +
+      `<label><span>${t("rev.excluded")} · ${t("rev.commas")}</span><textarea data-field="excluded">${esc(o.excluded.join(", "))}</textarea></label>`;
+    return card;
+  }
+
+  function readList(v: string): string[] {
+    return v.split(",").map((s) => s.trim()).filter(Boolean);
+  }
+
+  function collectMarkets() {
+    return Array.from(document.querySelectorAll<HTMLElement>(".mkt-edit")).map((card) => {
+      const q = (f: string) =>
+        (card.querySelector(`[data-field="${f}"]`) as HTMLInputElement | HTMLTextAreaElement)?.value ?? "";
+      return {
+        key: card.dataset.key!,
+        primary_name: q("primary").trim(),
+        search_terms: readList(q("terms")),
+        excluded_terms: readList(q("excluded")),
+      };
+    });
+  }
+
+  function numOrNull(id: string): number | null {
+    const v = (document.getElementById(id) as HTMLInputElement).value.trim();
+    if (!v) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  function strOrNull(id: string): string | null {
+    const v = (document.getElementById(id) as HTMLInputElement).value.trim();
+    return v || null;
+  }
+
+  function bindReview() {
+    const backBtn = document.getElementById("backBtn");
+    if (backBtn && backBtn.dataset.bound !== "1") {
+      backBtn.dataset.bound = "1";
+      backBtn.addEventListener("click", () => {
+        document.getElementById("screen-review")!.style.display = "none";
+        document.getElementById("screen-upload")!.style.display = "block";
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    }
+    const confirmBtn = document.getElementById("confirmBtn") as HTMLButtonElement | null;
+    if (confirmBtn && confirmBtn.dataset.bound !== "1") {
+      confirmBtn.dataset.bound = "1";
+      confirmBtn.addEventListener("click", async () => {
+        if (!identified) return;
+        const revStatus = document.getElementById("rev-status")!;
+
+        // rebuild localized_markets keyed by ISO3 (the only thing the user edits)
+        const lmOut: Record<string, LocalizedMarket> = {};
+        collectMarkets().forEach((m) => {
+          lmOut[m.key] = {
+            primary_name: m.primary_name,
+            search_terms: m.search_terms,
+            excluded_terms: m.excluded_terms,
+            confidence: identified!.localized_markets?.[m.key]?.confidence ?? 0.5,
+          };
+        });
+
+        // Reference-market candidates: trust the LLM's proposal, pass through as-is.
+        const refsOut: ReferenceMarket[] = identified.reference_candidates ?? [];
+
+        const name = (document.getElementById("f-name") as HTMLInputElement).value.trim();
+        if (!name) { revStatus.textContent = t("idx.err.desc"); return; }
+
+        setLoading(confirmBtn, true, t("rev.analyzing"));
+        revStatus.textContent = t("rev.submitting");
+        try {
+          const countries = Array.from(selected);
+          const res = await analyze({
+            product_name: name,
+            brand: strOrNull("f-brand"),
+            category: strOrNull("f-category"),
+            localized_markets: Object.keys(lmOut).length ? lmOut : null,
+            reference_candidates: refsOut.length ? refsOut : null,
+            target_age_min: numOrNull("f-agemin"),
+            target_age_max: numOrNull("f-agemax"),
+            estimated_price: numOrNull("f-price"),
+            price_currency: strOrNull("f-currency"),
+            user_prompt: userPrompt || null,
+            countries,
+          });
+          try {
+            sessionStorage.setItem(`mm:slug:${res.request_id}`, slugForId(res.request_id));
+          } catch { /* sessionStorage may be unavailable */ }
+          // Register in the pending-analyses dock (survives navigation; the dock
+          // opens an SSE stream and flips the icon to ready when it finishes).
+          saveRequest({
+            id: res.request_id,
+            title: name,
+            countries,
+            status: res.status || "pending",
+            createdAt: Date.now(),
+          });
+          window.dispatchEvent(new CustomEvent("mm:requests-changed"));
+          revStatus.textContent = "";
+          window.location.assign(`/report/${res.request_id}`);
+        } catch (err) {
+          revStatus.textContent = err instanceof Error ? err.message : t("idx.err.failed");
+          setLoading(confirmBtn, false);
+        }
+      });
+    }
+  }
+
+  function init() {
+    bindUpload();
+    bindReview();
+  }
   init();
   document.addEventListener("astro:page-load", init);
 </script>
