@@ -163,6 +163,7 @@ export interface SignalEvidence {
   band: string;
   explanation: string;
   context?: string | null; // demand-volume carries absolute searches / population / penetration
+  dimension?: string | null; // deterministic dimension this signal rolls up into ("context" = not scored)
 }
 
 export interface CountryEvidence {

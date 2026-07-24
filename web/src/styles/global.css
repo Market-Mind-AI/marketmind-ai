@@ -483,3 +483,242 @@ textarea::placeholder {
     transition: none !important;
   }
 }
+
+/* ---- speedometer gauge (shared) ---- */
+.spdo {
+  display: block;
+}
+.spdo .spdo-num {
+  fill: var(--ink);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 40px;
+}
+.spdo.big .spdo-num {
+  font-size: 34px;
+}
+
+/* ---- grouped deterministic scores (dimension bar + nested signal bars) ---- */
+.gs-root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+.gs-root.gs-collapsed {
+  display: none;
+}
+.gs-group {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.012);
+}
+.gs-barhead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.gs-lbl {
+  color: var(--ink);
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.2;
+}
+.gs-bar.dim > .gs-barhead .gs-lbl {
+  font-size: 15px;
+  font-weight: 600;
+}
+.gs-val {
+  font-family: var(--font-mono);
+  color: var(--gold);
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.gs-val small {
+  font-size: 10px;
+  color: var(--muted);
+}
+.gs-track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  margin: 7px 0;
+}
+.gs-bar.dim .gs-track {
+  height: 9px;
+}
+.gs-fill {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--gold-deep), var(--gold));
+}
+.gs-bar.dim .gs-fill {
+  background: linear-gradient(90deg, var(--gold-deep), var(--mint));
+}
+.gs-meta {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.gs-expl {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin-top: 5px;
+  line-height: 1.5;
+  font-weight: 330;
+}
+.gs-ctx {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--faint);
+  margin-top: 3px;
+}
+.gs-children {
+  margin: 12px 0 0 2px;
+  padding: 12px 0 0 14px;
+  border-top: 1px solid var(--line-2);
+  border-left: 2px solid var(--line-2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.gs-ctxtitle {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  margin-bottom: 10px;
+}
+
+/* ---- comparison table (MOS + every score across countries) ---- */
+.cmp-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+.cmp {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 460px;
+  font-size: 13px;
+}
+.cmp th,
+.cmp td {
+  padding: 9px 14px;
+  text-align: right;
+  white-space: nowrap;
+  border-top: 1px solid var(--line-2);
+}
+.cmp thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  border-top: none;
+  background: #14170f;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+.cmp thead th .fg {
+  font-size: 15px;
+}
+.cmp th.metric,
+.cmp td.metric {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #12140d;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+.cmp thead th.metric {
+  z-index: 3;
+}
+.cmp td.metric {
+  color: var(--muted);
+}
+.cmp .v {
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+.cmp td.na {
+  color: var(--faint);
+}
+.cmp td.best {
+  background: rgba(95, 208, 173, 0.08);
+}
+/* MOS row — emphasized */
+.cmp tr.cmp-mos td,
+.cmp tr.cmp-mos th {
+  border-top: 2px solid var(--line);
+  font-size: 15px;
+}
+.cmp tr.cmp-mos th.metric {
+  font-weight: 700;
+  color: var(--ink);
+}
+.cmp tr.cmp-mos .v {
+  font-size: 15px;
+}
+/* dimension rows — bold; signal/context rows — indented + muted */
+.cmp tr.cmp-dim th.metric {
+  font-weight: 600;
+  color: var(--ink);
+}
+.cmp tr.cmp-sig th.metric,
+.cmp tr.cmp-ctx th.metric {
+  padding-left: 28px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 400;
+}
+.cmp tbody tr:hover td,
+.cmp tbody tr:hover th.metric {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+/* expand / collapse toggle on a country (MOS) card */
+.mh-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.mkt-toggle {
+  background: none;
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.2s ease, color 0.2s, border-color 0.2s;
+  flex: none;
+}
+.mkt-toggle:hover {
+  color: var(--ink);
+  border-color: rgba(236, 235, 227, 0.28);
+}
+.mkt-toggle.open {
+  transform: rotate(90deg);
+  color: var(--gold);
+  border-color: rgba(236, 188, 78, 0.4);
+}
+.mkt.has-detail .mh {
+  cursor: pointer;
+}

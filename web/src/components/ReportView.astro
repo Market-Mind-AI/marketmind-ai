@@ -79,6 +79,12 @@ const { showActions = true, fromSlug = false } = Astro.props;
       <div class="mkts" id="r-ranking"></div>
     </div>
 
+    <!-- comparison table: MOS + every score across all countries -->
+    <div class="sec" id="r-comparison-sec" style="display: none;">
+      <div class="sectitle" data-i18n="rep.comparison">Comparison — MOS &amp; all scores</div>
+      <div class="cmp-wrap"><table class="cmp" id="r-comparison"></table></div>
+    </div>
+
     <!-- narrative -->
     <div class="sec" id="r-narrative-sec" style="display: none;">
       <div class="sectitle" data-i18n="rep.narrative">Analysis</div>
@@ -222,7 +228,9 @@ const { showActions = true, fromSlug = false } = Astro.props;
     idFromSlug,
     type AnalysisStatusResponse,
     type MosResult,
+    type CountryEvidence,
   } from "../lib/api";
+  import { renderGroupedScores, signalDimension } from "../lib/grouped-scores";
   import { t } from "../lib/i18n";
 
   const POLL_MS = 2500;
@@ -241,6 +249,86 @@ const { showActions = true, fromSlug = false } = Astro.props;
   }
   function isScored(r: MosResult): boolean {
     return mosOf(r) !== null && !r.excluded_reason;
+  }
+
+  let escDiv: HTMLElement | null = null;
+  function escapeHtml(s: string): string {
+    if (!escDiv) escDiv = document.createElement("div");
+    escDiv.textContent = s ?? "";
+    return escDiv.innerHTML;
+  }
+
+  /* ---------- comparison table: MOS + every score across all countries ---------- */
+  function buildComparison(countries: CountryEvidence[]): void {
+    const sec = document.getElementById("r-comparison-sec")!;
+    const table = document.getElementById("r-comparison") as HTMLTableElement;
+    if (countries.length === 0) {
+      sec.style.display = "none";
+      return;
+    }
+    sec.style.display = "block";
+    table.innerHTML = "";
+
+    // canonical row order from the first country: MOS, then each dimension with
+    // its nested signals, then the context-only signals. Same set across all
+    // countries, so column values are looked up by key per country.
+    type Row = { kind: "mos" | "dim" | "sig" | "ctx"; label: string; key: string };
+    const first = countries[0];
+    const rows: Row[] = [{ kind: "mos", label: "MOS", key: "__mos__" }];
+    for (const dim of first.dimensions ?? []) {
+      rows.push({ kind: "dim", label: dim.label, key: dim.dimension });
+      for (const s of (first.signals ?? []).filter((x) => signalDimension(x) === dim.dimension)) {
+        rows.push({ kind: "sig", label: s.label, key: s.code });
+      }
+    }
+    for (const s of (first.signals ?? []).filter((x) => signalDimension(x) === "context")) {
+      rows.push({ kind: "ctx", label: s.label, key: s.code });
+    }
+
+    const dimMap = new Map<string, Map<string, number>>();
+    const sigMap = new Map<string, Map<string, number>>();
+    const mosMap = new Map<string, number | null>();
+    for (const c of countries) {
+      dimMap.set(c.country, new Map((c.dimensions ?? []).map((d) => [d.dimension, d.score])));
+      sigMap.set(c.country, new Map((c.signals ?? []).map((s) => [s.code, s.score])));
+      mosMap.set(c.country, num(c.mos));
+    }
+    const valueFor = (row: Row, country: string): number | null => {
+      if (row.kind === "mos") return mosMap.get(country) ?? null;
+      if (row.kind === "dim") return dimMap.get(country)?.get(row.key) ?? null;
+      return sigMap.get(country)?.get(row.key) ?? null;
+    };
+
+    const thead = document.createElement("thead");
+    thead.innerHTML =
+      `<tr><th class="metric">${t("rep.metric")}</th>` +
+      countries
+        .map((c) => `<th><span class="fg">${flag(c.country)}</span> ${escapeHtml(countryName(c.country))}</th>`)
+        .join("") +
+      `</tr>`;
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    for (const row of rows) {
+      const vals = countries.map((c) => valueFor(row, c.country));
+      const present = vals.filter((v): v is number => v !== null);
+      const best = present.length > 1 ? Math.max(...present) : null;
+      let cells = `<th class="metric">${escapeHtml(row.label)}</th>`;
+      for (const v of vals) {
+        if (v === null) {
+          cells += `<td class="na">—</td>`;
+          continue;
+        }
+        const color = mosTier(v).color;
+        const isBest = best !== null && Math.abs(v - best) < 0.05;
+        cells += `<td class="${isBest ? "best" : ""}"><span class="v" style="color:${color}">${Math.round(v)}</span></td>`;
+      }
+      const tr = document.createElement("tr");
+      tr.className = `cmp-${row.kind}`;
+      tr.innerHTML = cells;
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
   }
 
   /* ---------- analyzing loader animation ---------- */
@@ -328,7 +416,11 @@ const { showActions = true, fromSlug = false } = Astro.props;
       }, 22);
     }
 
-    // ranking list
+    // ranking list — each card carries the country's grouped deterministic
+    // scores (dimension gauge + child signal gauges), from the evidence packet.
+    const evByCountry = new Map<string, CountryEvidence>(
+      (a.breakdown?.countries ?? []).map((c) => [c.country, c]),
+    );
     const ranking = document.getElementById("r-ranking")!;
     ranking.innerHTML = "";
     results.forEach((r, i) => {
@@ -339,21 +431,55 @@ const { showActions = true, fromSlug = false } = Astro.props;
       if (r.capped_by) tags.push(`<span class="tag cap">${t("rep.cappedby")} ${r.capped_by}</span>`);
       if (excluded) tags.push(`<span class="tag">${t("rep.excluded")}: ${r.excluded_reason}</span>`);
       const band = r.mos_interpretation ?? r.explanation ?? "";
+      const ev = evByCountry.get(r.country);
+      const toggleHtml = ev
+        ? `<button class="mkt-toggle" aria-expanded="false" aria-label="Expand details">▸</button>`
+        : "";
       const card = el(
         "div",
         `<div class="mh"><div class="fl"><span class="rk">#${i + 1}</span><span class="fg">${flag(r.country)}</span>${countryName(r.country)}</div>` +
-          `<div class="sc">${scoreHtml}</div></div>` +
+          `<div class="mh-right"><div class="sc">${scoreHtml}</div>${toggleHtml}</div></div>` +
           `<div class="mtrack"><div class="mfill"></div></div>` +
           (band ? `<div class="band">${band}</div>` : "") +
           (tags.length ? `<div class="flags">${tags.join("")}</div>` : ""),
-        "mkt" + (excluded ? " excluded" : ""),
+        "mkt" + (excluded ? " excluded" : "") + (ev ? " has-detail" : ""),
       );
       ranking.appendChild(card);
       const fill = card.querySelector<HTMLElement>(".mfill")!;
       const w = `${Math.max(0, Math.min(100, m ?? 0))}%`;
       if (reduce) fill.style.width = w;
       else requestAnimationFrame(() => (fill.style.width = w));
+
+      // grouped deterministic scores (progress bars), collapsed by default —
+      // shown only when the user expands the card; re-animate on each open.
+      if (ev) {
+        const groups = document.createElement("div");
+        groups.className = "gs-root gs-collapsed";
+        card.appendChild(groups);
+        const animateGroups = renderGroupedScores(groups, ev);
+        const toggle = card.querySelector<HTMLButtonElement>(".mkt-toggle")!;
+        const head = card.querySelector<HTMLElement>(".mh")!;
+        let expanded = false;
+        const setExpanded = (v: boolean) => {
+          expanded = v;
+          groups.classList.toggle("gs-collapsed", !expanded);
+          toggle.classList.toggle("open", expanded);
+          toggle.setAttribute("aria-expanded", String(expanded));
+          if (expanded) animateGroups();
+        };
+        toggle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          setExpanded(!expanded);
+        });
+        head.addEventListener("click", () => setExpanded(!expanded));
+      }
     });
+
+    // comparison table — MOS + every deterministic score across all countries
+    const orderedEv = results
+      .map((r) => evByCountry.get(r.country))
+      .filter((e): e is CountryEvidence => !!e);
+    buildComparison(orderedEv);
 
     // narrative
     const narrSec = document.getElementById("r-narrative-sec")!;
