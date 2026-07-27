@@ -501,8 +501,10 @@ import Base from "../layouts/Base.astro";
           try {
             sessionStorage.setItem(`mm:slug:${res.request_id}`, slugForId(res.request_id));
           } catch { /* sessionStorage may be unavailable */ }
-          // Register in the pending-analyses dock (survives navigation; the dock
-          // opens an SSE stream and flips the icon to ready when it finishes).
+          // Register in the pending-analyses dock and DON'T navigate: the
+          // analysis runs in the background (dock shows it, streams status, and
+          // toasts + turns green when done). The user is freed to queue more
+          // analyses in parallel instead of staring at a loading screen.
           saveRequest({
             id: res.request_id,
             title: name,
@@ -510,9 +512,14 @@ import Base from "../layouts/Base.astro";
             status: res.status || "pending",
             createdAt: Date.now(),
           });
-          window.dispatchEvent(new CustomEvent("mm:requests-changed"));
+          window.dispatchEvent(new CustomEvent("mm:requests-changed", { detail: { started: name } }));
+          setLoading(confirmBtn, false);
           revStatus.textContent = "";
-          window.location.assign(`/report/${res.request_id}`);
+          // back to the upload screen, ready for the next product
+          identified = null;
+          document.getElementById("screen-review")!.style.display = "none";
+          document.getElementById("screen-upload")!.style.display = "block";
+          window.scrollTo({ top: 0, behavior: "smooth" });
         } catch (err) {
           revStatus.textContent = err instanceof Error ? err.message : t("idx.err.failed");
           setLoading(confirmBtn, false);

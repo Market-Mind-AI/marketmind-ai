@@ -72,10 +72,10 @@ export const messages: Record<Lang, Record<string, string>> = {
     "an.eyebrow": "Live analysis",
     "an.meta": "running the pipeline",
     "an.title": "Analyzing your product…",
-    "an.step1": "Ensuring data freshness (last 6 months)",
-    "an.step2": "Collecting missing signals (Trends · World Bank · UN · OECD)",
-    "an.step3": "Computing Cap. 4 indicators",
-    "an.step4": "Computing the MOS per country (Cap. 5)",
+    "an.step1": "Checking data freshness",
+    "an.step2": "Cross-referencing data (Google, World Bank, UN, OECD)",
+    "an.step3": "Computing indicators & scores",
+    "an.step4": "Scoring the market opportunity per country",
     "an.step5": "Writing the business narrative",
     // --- report ---
     "rep.loading": "Loading report…",
@@ -108,6 +108,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     "dock.running": "running",
     "dock.done": "ready",
     "dock.failed": "failed",
+    "dock.started": "analysis started — running in the background",
+    "dock.stillrunning": "still running — you'll get a toast when it's ready",
   },
   es: {
     "foot": "MarketMind AI — MVP de inteligencia comercial",
@@ -167,10 +169,10 @@ export const messages: Record<Lang, Record<string, string>> = {
     "an.eyebrow": "Análisis en vivo",
     "an.meta": "ejecutando el pipeline",
     "an.title": "Analizando tu producto…",
-    "an.step1": "Asegurando frescura de datos (últimos 6 meses)",
-    "an.step2": "Recolectando señales faltantes (Trends · Banco Mundial · ONU · OCDE)",
-    "an.step3": "Calculando indicadores del Cap. 4",
-    "an.step4": "Calculando el MOS por país (Cap. 5)",
+    "an.step1": "Verificando frescura de los datos",
+    "an.step2": "Cruzando datos (Google, Banco Mundial, ONU, OCDE)",
+    "an.step3": "Calculando indicadores y scores",
+    "an.step4": "Puntuando la oportunidad de mercado por país",
     "an.step5": "Redactando la narrativa de negocio",
     // --- report ---
     "rep.loading": "Cargando informe…",
@@ -203,6 +205,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     "dock.running": "procesando",
     "dock.done": "listo",
     "dock.failed": "falló",
+    "dock.started": "análisis iniciado — corriendo en segundo plano",
+    "dock.stillrunning": "aún procesando — recibirás un aviso al terminar",
   },
 };
 

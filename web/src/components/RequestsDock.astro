@@ -1,8 +1,9 @@
 ---
 // Persistent "pending analyses" dock, mounted in the Base layout so it survives
 // page navigation. Lists the user's analysis requests (from localStorage) with
-// live status icons driven by the Core's SSE stream; clicking one opens the
-// rich animated MOS breakdown modal.
+// live status icons driven by the Core's SSE stream. On completion it toasts and
+// turns the row green; clicking a finished row opens its report. Lets the user
+// queue many analyses in parallel instead of watching a loading screen.
 ---
 
 <div class="dock" id="mm-dock">
@@ -20,6 +21,8 @@
     <div class="dock-empty mono" id="mm-dock-empty" data-i18n="dock.empty">No analyses yet.</div>
   </div>
 </div>
+
+<div class="dock-toast" id="mm-dock-toast" hidden><span id="mm-dock-toast-msg"></span></div>
 
 <style is:global>
   /* dock */
@@ -60,6 +63,10 @@
     transition: border-color .2s, background .2s;
   }
   .dock-item:hover { border-color: rgba(236,235,227,.22); background: rgba(255,255,255,.03); }
+  /* finished analysis — green accent, click opens its report */
+  .dock-item.ready { border-color: rgba(95,208,173,.4); background: rgba(95,208,173,.06); }
+  .dock-item.ready:hover { border-color: rgba(95,208,173,.7); background: rgba(95,208,173,.1); }
+  .dock-item.ready .di-title { color: var(--mint); }
   .dock-item .di-ic { width: 20px; height: 20px; flex: none; display: grid; place-items: center; }
   .dock-item .di-body { flex: 1; min-width: 0; }
   .dock-item .di-title { font-size: 13.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -73,6 +80,20 @@
   @keyframes spin { to { transform: rotate(360deg); } }
   .di-done { color: var(--mint); font-size: 15px; }
   .di-failed { color: #e96a4c; font-size: 15px; }
+
+  /* completion toast (bottom, above the dock button) */
+  .dock-toast {
+    position: fixed; right: 20px; bottom: 74px; z-index: 70; max-width: min(360px, 88vw);
+    padding: 12px 16px; border-radius: 12px; font-size: 13.5px; color: var(--ink);
+    background: linear-gradient(180deg, rgba(24,27,23,.98), rgba(14,16,13,.99));
+    border: 1px solid var(--line); box-shadow: 0 12px 34px rgba(0,0,0,.5);
+    animation: dockpop .18s var(--ease);
+  }
+  .dock-toast.ok { border-color: rgba(95,208,173,.5); }
+  .dock-toast.err { border-color: rgba(233,106,76,.5); }
+  .dock-toast.run { border-color: rgba(236,188,78,.45); }
+  .dock-toast.clickable { cursor: pointer; }
+  .dock-toast.clickable:hover { border-color: rgba(95,208,173,.85); }
 
   /* modal */
   .bk-overlay {
@@ -166,10 +187,10 @@
     removeRequest,
     subscribeStatus,
     isTerminalStatus,
+    fetchCountries,
     countryName,
     type StoredRequest,
   } from "../lib/api";
-  import { openAnalysisModal } from "../lib/breakdown-view";
   import { t } from "../lib/i18n";
 
   // Active SSE subscriptions, keyed by request id — module-level so they persist
@@ -223,6 +244,7 @@
         `<div class="di-body"><div class="di-title">${escapeHtml(r.title || "Analysis")}</div>` +
         `<div class="di-sub">${escapeHtml(statusLabel(r.status))}${markets ? ` · ${escapeHtml(markets)}` : ""}</div></div>` +
         `<span class="di-x" title="remove">✕</span>`;
+      if (isTerminalStatus(r.status)) item.classList.add("ready");
       item.addEventListener("click", (e) => {
         if ((e.target as HTMLElement).classList.contains("di-x")) {
           e.stopPropagation();
@@ -232,7 +254,9 @@
           render();
           return;
         }
-        openAnalysisModal(r.id);
+        // A finished analysis opens its report; a running one just tells you so.
+        if (isTerminalStatus(r.status)) window.location.assign(`/report/${r.id}`);
+        else toast(t("dock.stillrunning"), "run");
       });
       list.appendChild(item);
     });
@@ -244,14 +268,30 @@
     return d.innerHTML;
   }
 
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
+  function toast(msg: string, kind: "ok" | "err" | "run" = "ok", gotoId?: string): void {
+    const box = document.getElementById("mm-dock-toast");
+    const m = document.getElementById("mm-dock-toast-msg");
+    if (!box || !m) return;
+    m.textContent = msg;
+    box.className = "dock-toast " + kind + (gotoId ? " clickable" : "");
+    box.hidden = false;
+    box.onclick = gotoId ? () => window.location.assign(`/report/${gotoId}`) : null;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { box.hidden = true; }, 6000);
+  }
+
   function ensureSub(r: StoredRequest): void {
     if (isTerminalStatus(r.status) || subs.has(r.id)) return;
+    const title = r.title || "Analysis";
     const dispose = subscribeStatus(r.id, (status) => {
       patchRequest(r.id, { status });
       render();
       if (isTerminalStatus(status)) {
         const s = subs.get(r.id);
         if (s) { s(); subs.delete(r.id); }
+        if (status.toLowerCase() === "done") toast(`✓ ${title} — ${t("dock.done")}`, "ok", r.id);
+        else toast(`✕ ${title} — ${t("dock.failed")}`, "err", r.id);
       }
     });
     subs.set(r.id, dispose);
@@ -264,6 +304,7 @@
   function init(): void {
     const { btn, panel, clear } = els();
     if (!btn || !panel) return;
+    fetchCountries().then(render).catch(() => {}); // nicer market names once loaded
     render();
     subscribeAll();
 
@@ -284,8 +325,19 @@
     }
   }
 
-  // Fired by the analyze flow after a new request is submitted.
-  window.addEventListener("mm:requests-changed", () => { render(); subscribeAll(); });
+  // Fired by the analyze flow after a new request is submitted: refresh, start
+  // streaming it, auto-open the panel, and toast that it started.
+  window.addEventListener("mm:requests-changed", (e) => {
+    render();
+    subscribeAll();
+    const { panel, btn } = els();
+    if (panel && panel.hasAttribute("hidden")) {
+      panel.removeAttribute("hidden");
+      btn?.setAttribute("aria-expanded", "true");
+    }
+    const started = (e as CustomEvent<{ started?: string }>).detail?.started;
+    if (started) toast(`${started} — ${t("dock.started")}`, "run");
+  });
 
   init();
   document.addEventListener("astro:page-load", init);

@@ -347,10 +347,12 @@ const { showActions = true, fromSlug = false } = Astro.props;
         s.classList.toggle("done", k < i);
       });
       if (bar) bar.style.width = `${Math.round(((i + 0.5) / steps.length) * 100)}%`;
-      i = (i + 1) % steps.length;
+      // Advance through the phases once and HOLD on the last (spinning) — never
+      // loop back, which read as "stuck / will never finish".
+      if (i < steps.length - 1) i++;
     };
     advance();
-    if (!reduce) stepTimer = setInterval(advance, 1400);
+    if (!reduce) stepTimer = setInterval(advance, 1800);
   }
   function stopLoader() {
     if (stepTimer) clearInterval(stepTimer);
