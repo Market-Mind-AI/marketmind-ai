@@ -173,6 +173,8 @@ export interface CountryEvidence {
   mos_explanation: string | null;
   dimensions: DimensionEvidence[];
   signals: SignalEvidence[];
+  demand_confidence?: string | null; // "low" = demand likely undercounted (missing native term)
+  demand_confidence_note?: string | null;
 }
 
 export interface DemandRuler {
@@ -272,65 +274,67 @@ async function errorDetail(res: Response, fallback: string): Promise<string> {
   return `${fallback} (${res.status})`;
 }
 
-/* ---------- country catalog (the 27 reference countries, ISO3) ---------- */
-// Mirrors alembic 003_seed_reference_countries.py. iso2 is used for the flag
-// emoji; the picker/report render `name`.
+/* ---------- country catalog (fetched from the Core: GET /countries) ---------- */
+// The available markets are served by the Core, ordered by continent then name
+// (the markets Google Ads can measure — see marketmind-core
+// docs/paises-disponiveis.md). Fetched once and cached; countryName()/flag()
+// resolve from that cache, so a caller must ensure fetchCountries() has resolved
+// before rendering names/flags (each page awaits it on init).
 
 export interface CountryMeta {
   iso3: string;
   name: string;
-  iso2: string;
+  iso2: string | null;
+  continent: string | null;
 }
-
-export const COUNTRIES: CountryMeta[] = [
-  { iso3: "USA", name: "United States", iso2: "US" },
-  { iso3: "BRA", name: "Brazil", iso2: "BR" },
-  { iso3: "DEU", name: "Germany", iso2: "DE" },
-  { iso3: "FRA", name: "France", iso2: "FR" },
-  { iso3: "GBR", name: "United Kingdom", iso2: "GB" },
-  { iso3: "ITA", name: "Italy", iso2: "IT" },
-  { iso3: "ESP", name: "Spain", iso2: "ES" },
-  { iso3: "CAN", name: "Canada", iso2: "CA" },
-  { iso3: "MEX", name: "Mexico", iso2: "MX" },
-  { iso3: "ARG", name: "Argentina", iso2: "AR" },
-  { iso3: "CHL", name: "Chile", iso2: "CL" },
-  { iso3: "COL", name: "Colombia", iso2: "CO" },
-  { iso3: "PER", name: "Peru", iso2: "PE" },
-  { iso3: "JPN", name: "Japan", iso2: "JP" },
-  { iso3: "CHN", name: "China", iso2: "CN" },
-  { iso3: "IND", name: "India", iso2: "IN" },
-  { iso3: "KOR", name: "South Korea", iso2: "KR" },
-  { iso3: "AUS", name: "Australia", iso2: "AU" },
-  { iso3: "RUS", name: "Russia", iso2: "RU" },
-  { iso3: "ZAF", name: "South Africa", iso2: "ZA" },
-  { iso3: "IDN", name: "Indonesia", iso2: "ID" },
-  { iso3: "TUR", name: "Turkey", iso2: "TR" },
-  { iso3: "SAU", name: "Saudi Arabia", iso2: "SA" },
-  { iso3: "NLD", name: "Netherlands", iso2: "NL" },
-  { iso3: "PRT", name: "Portugal", iso2: "PT" },
-  { iso3: "POL", name: "Poland", iso2: "PL" },
-  { iso3: "SWE", name: "Sweden", iso2: "SE" },
-];
 
 /** Default target-market basket prefilled in the picker. */
 export const DEFAULT_COUNTRIES: string[] = ["BRA", "USA", "DEU", "JPN"];
 
-const COUNTRY_BY_ISO3: Record<string, CountryMeta> = Object.fromEntries(
-  COUNTRIES.map((c) => [c.iso3, c]),
-);
+let _countries: CountryMeta[] = [];
+const _byIso3 = new Map<string, CountryMeta>();
+let _countriesPromise: Promise<CountryMeta[]> | null = null;
+
+/** GET /countries — available markets ordered by (continent, name). Cached;
+ *  safe to call repeatedly (concurrent calls share one in-flight request). */
+export async function fetchCountries(): Promise<CountryMeta[]> {
+  if (_countries.length) return _countries;
+  if (!_countriesPromise) {
+    _countriesPromise = (async () => {
+      const res = await fetch(`${API_BASE}/countries`);
+      if (!res.ok) throw new Error(await errorDetail(res, "Failed to load countries"));
+      const list = (await res.json()) as CountryMeta[];
+      _countries = list;
+      _byIso3.clear();
+      for (const c of list) _byIso3.set(c.iso3.toUpperCase(), c);
+      return list;
+    })();
+  }
+  try {
+    return await _countriesPromise;
+  } catch (err) {
+    _countriesPromise = null; // allow a retry on the next call
+    throw err;
+  }
+}
+
+/** The cached list (empty until fetchCountries() resolves). */
+export function countries(): CountryMeta[] {
+  return _countries;
+}
 
 export function countryMeta(iso3: string): CountryMeta | undefined {
-  return COUNTRY_BY_ISO3[iso3?.toUpperCase()];
+  return _byIso3.get(iso3?.toUpperCase());
 }
 
 export function countryName(iso3: string): string {
   return countryMeta(iso3)?.name ?? iso3;
 }
 
-/** Flag emoji from an ISO2 (or ISO3, resolved via the catalog). */
+/** Flag emoji from an ISO2 (or ISO3, resolved via the cached catalog). */
 export function flag(code: string): string {
   let iso2 = code?.toUpperCase() ?? "";
-  if (iso2.length === 3) iso2 = countryMeta(iso2)?.iso2 ?? "";
+  if (iso2.length === 3) iso2 = countryMeta(iso2)?.iso2?.toUpperCase() ?? "";
   if (iso2.length !== 2) return "🏳️";
   return iso2.replace(/./g, (c) =>
     String.fromCodePoint(127397 + c.charCodeAt(0)),

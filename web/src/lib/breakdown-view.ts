@@ -6,6 +6,7 @@
 
 import {
   getAnalysis,
+  fetchCountries,
   isTerminalStatus,
   num,
   flag,
@@ -46,7 +47,10 @@ function renderCountry(container: HTMLElement, c: CountryEvidence): void {
   heroText.innerHTML =
     `<div class="bk-heroflag"><span class="fg">${flag(c.country)}</span>${esc(countryName(c.country))}</div>` +
     `<div class="bk-herolbl">MOS / 100</div>` +
-    (c.mos_explanation ? `<p>${esc(c.mos_explanation)}</p>` : "");
+    (c.mos_explanation ? `<p>${esc(c.mos_explanation)}</p>` : "") +
+    (c.demand_confidence === "low"
+      ? `<div class="bk-warn">⚠ ${esc(c.demand_confidence_note ?? "")}</div>`
+      : "");
   hero.appendChild(heroText);
   container.appendChild(hero);
 
@@ -93,6 +97,7 @@ export async function openAnalysisModal(id: string): Promise<void> {
 
   let a: AnalysisStatusResponse;
   try {
+    await fetchCountries().catch(() => []); // names/flags resolve from this cache
     a = await getAnalysis(id);
   } catch (err) {
     const state = overlay.querySelector(".bk-state") as HTMLElement;

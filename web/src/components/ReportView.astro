@@ -198,6 +198,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
     padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line-2); color: var(--muted);
   }
   .mkt .tag.cap { color: #f0a892; border-color: rgba(233,106,76,.35); }
+  .mkt .tag.warn { color: #ecbc4e; border-color: rgba(236,188,78,.45); background: rgba(236,188,78,.06); cursor: help; }
   .mkt.excluded { opacity: .6; }
 
   /* narrative */
@@ -219,6 +220,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
 <script>
   import {
     getAnalysis,
+    fetchCountries,
     isTerminalStatus,
     num,
     flag,
@@ -432,6 +434,11 @@ const { showActions = true, fromSlug = false } = Astro.props;
       if (excluded) tags.push(`<span class="tag">${t("rep.excluded")}: ${r.excluded_reason}</span>`);
       const band = r.mos_interpretation ?? r.explanation ?? "";
       const ev = evByCountry.get(r.country);
+      if (ev?.demand_confidence === "low") {
+        tags.push(
+          `<span class="tag warn" title="${escapeHtml(ev.demand_confidence_note ?? "")}">⚠ ${t("rep.lowconfidence")}</span>`,
+        );
+      }
       const toggleHtml = ev
         ? `<button class="mkt-toggle" aria-expanded="false" aria-label="Expand details">▸</button>`
         : "";
@@ -577,6 +584,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
         }
         if (isTerminalStatus(a.status)) {
           stopped = true;
+          await fetchCountries().catch(() => []); // names/flags resolve from this cache
           render(a, showActions);
           return;
         }

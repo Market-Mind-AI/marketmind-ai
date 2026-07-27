@@ -29,7 +29,7 @@ import Base from "../layouts/Base.astro";
         <div class="lab"><span data-i18n="idx.description">Description</span><span data-i18n="idx.freetext">free text</span></div>
         <textarea id="desc" name="description" spellcheck="false" required
           data-i18n-ph="idx.placeholder"
-          placeholder="Describe your product in a sentence or two…">Air fryer 5.5L, digital touchscreen, rapid hot-air cooking with little to no oil, non-stick basket, multiple presets for fries, chicken and vegetables.</textarea>
+          placeholder="Describe your product in a sentence or two…">Vou começar a vender air fryer, nos paises selecionados, porem não sei se são potenciais mercados e como está a economia deles, se o momento agora é propício para isso.</textarea>
       </div>
     </form>
 
@@ -69,11 +69,7 @@ import Base from "../layouts/Base.astro";
       </div>
     </div>
 
-    <!-- per-market vocabulary -->
-    <div class="card rev-card">
-      <div class="sectitle" data-i18n="rev.markets">Per-market search vocabulary</div>
-      <div id="rev-markets" class="rev-markets"></div>
-    </div>
+    <p class="sub rev-note" data-i18n="rev.note">The search vocabulary per market is generated automatically — you only confirm the product identity above.</p>
 
     <div class="runbar">
       <button class="btn ghost" id="backBtn" type="button"><span class="ar">←</span> <span data-i18n="rev.back">Back</span></button>
@@ -153,7 +149,13 @@ import Base from "../layouts/Base.astro";
   /* country picker */
   .markets-card { padding: 22px; margin-top: 16px; }
   .markets-hint { margin-bottom: 14px; }
-  .cpick { display: flex; flex-wrap: wrap; gap: 8px; }
+  .cpick { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  /* full-width break so chips group under each continent heading */
+  .cpick-cont {
+    width: 100%; margin: 10px 0 2px; font-family: var(--font-mono);
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint);
+  }
+  .cpick-cont:first-child { margin-top: 0; }
   .cpick .cchip {
     display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
     font-size: 13px; color: var(--ink-soft);
@@ -236,13 +238,10 @@ import Base from "../layouts/Base.astro";
     fileToImagePayload,
     slugForId,
     saveRequest,
-    COUNTRIES,
+    fetchCountries,
     DEFAULT_COUNTRIES,
-    countryName,
     flag,
     type IdentifyImageResult,
-    type LocalizedMarket,
-    type ReferenceMarket,
   } from "../lib/api";
   import { t } from "../lib/i18n";
 
@@ -341,24 +340,59 @@ import Base from "../layouts/Base.astro";
     );
     dropzone.addEventListener("drop", (e) => addFiles((e as DragEvent).dataTransfer?.files ?? null));
 
-    // country picker
+    // Default sample image (dev convenience): preload web/public/sample-air-fryer.jpg
+    // so tests don't need a manual upload. Silently skipped when absent — the
+    // manual dropzone still works.
+    async function loadDefaultImage() {
+      if (files.length) return;
+      try {
+        const res = await fetch("/sample-air-fryer.jpg", { cache: "force-cache" });
+        if (!res.ok) return;
+        const blob = await res.blob();
+        if (files.length) return; // a real upload won the race
+        files.push(new File([blob], "sample-air-fryer.jpg", { type: blob.type || "image/jpeg" }));
+        renderThumbs();
+      } catch {
+        /* no sample image available — fine */
+      }
+    }
+    void loadDefaultImage();
+
+    // country picker — fetched from the Core (GET /countries), grouped by
+    // continent and alphabetical within each (the API returns that order).
     const cpick = document.getElementById("cpick")!;
     const mktCount = document.getElementById("mkt-count")!;
     function renderCount() { mktCount.textContent = String(selected.size); }
-    cpick.innerHTML = "";
-    COUNTRIES.forEach((c) => {
-      const chip = document.createElement("button");
-      chip.type = "button";
-      chip.className = "cchip" + (selected.has(c.iso3) ? " on" : "");
-      chip.dataset.iso3 = c.iso3;
-      chip.innerHTML = `<span class="fg">${flag(c.iso2)}</span>${esc(c.name)}`;
-      chip.addEventListener("click", () => {
-        if (selected.has(c.iso3)) { selected.delete(c.iso3); chip.classList.remove("on"); }
-        else { selected.add(c.iso3); chip.classList.add("on"); }
+    cpick.innerHTML = `<span class="mono faint" style="font-size:12px">…</span>`;
+    fetchCountries()
+      .then((list) => {
+        cpick.innerHTML = "";
+        let currentCont: string | null | undefined;
+        list.forEach((c) => {
+          if (c.continent !== currentCont) {
+            currentCont = c.continent;
+            const head = document.createElement("div");
+            head.className = "cpick-cont";
+            head.textContent = c.continent ?? "";
+            cpick.appendChild(head);
+          }
+          const chip = document.createElement("button");
+          chip.type = "button";
+          chip.className = "cchip" + (selected.has(c.iso3) ? " on" : "");
+          chip.dataset.iso3 = c.iso3;
+          chip.innerHTML = `<span class="fg">${flag(c.iso2 ?? c.iso3)}</span>${esc(c.name)}`;
+          chip.addEventListener("click", () => {
+            if (selected.has(c.iso3)) { selected.delete(c.iso3); chip.classList.remove("on"); }
+            else { selected.add(c.iso3); chip.classList.add("on"); }
+            renderCount();
+          });
+          cpick.appendChild(chip);
+        });
         renderCount();
+      })
+      .catch((err) => {
+        cpick.innerHTML = `<span class="mono" style="color:#e96a4c;font-size:12px">${esc(err instanceof Error ? err.message : "Failed to load countries")}</span>`;
       });
-      cpick.appendChild(chip);
-    });
     renderCount();
 
     form.addEventListener("submit", async (e) => {
@@ -408,62 +442,9 @@ import Base from "../layouts/Base.astro";
       identified.target_age_min != null ? String(identified.target_age_min) : "";
     (document.getElementById("f-agemax") as HTMLInputElement).value =
       identified.target_age_max != null ? String(identified.target_age_max) : "";
-
-    // per-market vocabulary — one card per requested country
-    const lm = identified.localized_markets ?? {};
-    const marketsEl = document.getElementById("rev-markets")!;
-    marketsEl.innerHTML = "";
-    Array.from(selected).forEach((iso3) => {
-      const m: Partial<LocalizedMarket> = lm[iso3] ?? {};
-      marketsEl.appendChild(
-        marketCard({
-          key: iso3,
-          title: countryName(iso3),
-          flagCode: iso3,
-          primary: m.primary_name ?? "",
-          terms: m.search_terms ?? [],
-          excluded: m.excluded_terms ?? [],
-          confidence: m.confidence,
-        }),
-      );
-    });
-    // Reference-market candidates are NOT shown for review — too hard to curate;
-    // we trust what the LLM proposed and pass them straight through to /analyze.
-    // The user only confirms their own target markets (above).
-  }
-
-  function marketCard(o: {
-    key: string; title: string; flagCode: string;
-    primary: string; terms: string[]; excluded: string[];
-    confidence?: number;
-  }): HTMLElement {
-    const card = document.createElement("div");
-    card.className = "mkt-edit";
-    card.dataset.key = o.key;
-    const conf = o.confidence != null ? `${Math.round(o.confidence * 100)}% ${t("rev.conf")}` : "";
-    card.innerHTML =
-      `<div class="mh"><span class="fg">${flag(o.flagCode)}</span><b>${esc(o.title)}</b><span class="conf">${conf}</span></div>` +
-      `<label><span>${t("rev.primary")}</span><input type="text" data-field="primary" value="${esc(o.primary)}" /></label>` +
-      `<label><span>${t("rev.terms")} · ${t("rev.commas")}</span><textarea data-field="terms">${esc(o.terms.join(", "))}</textarea></label>` +
-      `<label><span>${t("rev.excluded")} · ${t("rev.commas")}</span><textarea data-field="excluded">${esc(o.excluded.join(", "))}</textarea></label>`;
-    return card;
-  }
-
-  function readList(v: string): string[] {
-    return v.split(",").map((s) => s.trim()).filter(Boolean);
-  }
-
-  function collectMarkets() {
-    return Array.from(document.querySelectorAll<HTMLElement>(".mkt-edit")).map((card) => {
-      const q = (f: string) =>
-        (card.querySelector(`[data-field="${f}"]`) as HTMLInputElement | HTMLTextAreaElement)?.value ?? "";
-      return {
-        key: card.dataset.key!,
-        primary_name: q("primary").trim(),
-        search_terms: readList(q("terms")),
-        excluded_terms: readList(q("excluded")),
-      };
-    });
+    // The per-country search vocabulary + reference candidates are trusted from
+    // the LLM (not user-curated) and passed straight through to /analyze — the
+    // user only confirms the product identity above.
   }
 
   function numOrNull(id: string): number | null {
@@ -494,20 +475,9 @@ import Base from "../layouts/Base.astro";
         if (!identified) return;
         const revStatus = document.getElementById("rev-status")!;
 
-        // rebuild localized_markets keyed by ISO3 (the only thing the user edits)
-        const lmOut: Record<string, LocalizedMarket> = {};
-        collectMarkets().forEach((m) => {
-          lmOut[m.key] = {
-            primary_name: m.primary_name,
-            search_terms: m.search_terms,
-            excluded_terms: m.excluded_terms,
-            confidence: identified!.localized_markets?.[m.key]?.confidence ?? 0.5,
-          };
-        });
-
-        // Reference-market candidates: trust the LLM's proposal, pass through as-is.
-        const refsOut: ReferenceMarket[] = identified.reference_candidates ?? [];
-
+        // Search vocabulary + reference candidates are trusted from the LLM and
+        // passed straight through — the user curates nothing here, only confirms
+        // the product identity. (The backend also merges them into the entity.)
         const name = (document.getElementById("f-name") as HTMLInputElement).value.trim();
         if (!name) { revStatus.textContent = t("idx.err.desc"); return; }
 
@@ -519,8 +489,8 @@ import Base from "../layouts/Base.astro";
             product_name: name,
             brand: strOrNull("f-brand"),
             category: strOrNull("f-category"),
-            localized_markets: Object.keys(lmOut).length ? lmOut : null,
-            reference_candidates: refsOut.length ? refsOut : null,
+            localized_markets: identified.localized_markets ?? null,
+            reference_candidates: identified.reference_candidates ?? null,
             target_age_min: numOrNull("f-agemin"),
             target_age_max: numOrNull("f-agemax"),
             estimated_price: numOrNull("f-price"),
