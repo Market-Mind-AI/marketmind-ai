@@ -17,8 +17,7 @@ export const messages: Record<Lang, Record<string, string>> = {
   en: {
     "foot": "MarketMind AI — commercial intelligence MVP",
     "nav.analyze": "Analyze",
-    "nav.batch": "Batch · CSV",
-    "nav.history": "History",
+    "nav.home": "Home",
     "topbar.live": "LIVE · CORE",
     // --- upload ---
     "idx.eyebrow": "New analysis",
@@ -79,6 +78,14 @@ export const messages: Record<Lang, Record<string, string>> = {
     "an.step5": "Writing the business narrative",
     // --- report ---
     "rep.loading": "Loading report…",
+    "rep.failed": "Analysis failed",
+    "rep.shared": "Shared report",
+    "rep.cta": "Want to score your own product?",
+    "rep.start": "Start an analysis",
+    "rep.topmarket": "Top market",
+    "rep.themarket": "Market",
+    "rep.analysis": "Market analysis",
+    "rep.champion": "Top market for this product (not requested)",
     "rep.ranking": "Market Opportunity ranking",
     "rep.mos": "MOS / 100",
     "rep.narrative": "Analysis",
@@ -100,6 +107,9 @@ export const messages: Record<Lang, Record<string, string>> = {
     "tier.strong": "Strong opportunity",
     "tier.moderate": "Moderate opportunity",
     "tier.weak": "Watch · weak",
+    // --- 404 ---
+    "nf.title": "This page <em>drifted off</em>.",
+    "nf.sub": "We couldn't find what you were looking for.",
     // --- dock ---
     "dock.title": "Analyses",
     "dock.empty": "No analyses yet.",
@@ -114,8 +124,7 @@ export const messages: Record<Lang, Record<string, string>> = {
   es: {
     "foot": "MarketMind AI — MVP de inteligencia comercial",
     "nav.analyze": "Analizar",
-    "nav.batch": "Lote · CSV",
-    "nav.history": "Historial",
+    "nav.home": "Inicio",
     "topbar.live": "EN VIVO · CORE",
     // --- upload ---
     "idx.eyebrow": "Nuevo análisis",
@@ -176,6 +185,14 @@ export const messages: Record<Lang, Record<string, string>> = {
     "an.step5": "Redactando la narrativa de negocio",
     // --- report ---
     "rep.loading": "Cargando informe…",
+    "rep.failed": "El análisis falló",
+    "rep.shared": "Informe compartido",
+    "rep.cta": "¿Quieres evaluar tu propio producto?",
+    "rep.start": "Iniciar un análisis",
+    "rep.topmarket": "Mejor mercado",
+    "rep.themarket": "Mercado",
+    "rep.analysis": "Análisis del mercado",
+    "rep.champion": "Mejor mercado para este producto (no solicitado)",
     "rep.ranking": "Ranking de Market Opportunity",
     "rep.mos": "MOS / 100",
     "rep.narrative": "Análisis",
@@ -197,6 +214,9 @@ export const messages: Record<Lang, Record<string, string>> = {
     "tier.strong": "Oportunidad fuerte",
     "tier.moderate": "Oportunidad moderada",
     "tier.weak": "Vigilar · débil",
+    // --- 404 ---
+    "nf.title": "Esta página <em>se perdió</em>.",
+    "nf.sub": "No encontramos lo que buscabas.",
     // --- dock ---
     "dock.title": "Análisis",
     "dock.empty": "Aún no hay análisis.",

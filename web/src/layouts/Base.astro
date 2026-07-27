@@ -7,13 +7,16 @@ interface Props {
   title?: string;
   description?: string;
   /** Which topbar tab to highlight. */
-  activeTab?: "analyze" | "batch" | "history";
+  activeTab?: "analyze";
+  /** Home screen: hides the "back to home" arrow (nothing to go back to). */
+  home?: boolean;
 }
 
 const {
   title = "MarketMind AI",
   description = "Generative commercial intelligence — score market opportunity from a product image and a sentence.",
   activeTab = "analyze",
+  home = false,
 } = Astro.props;
 ---
 
@@ -66,6 +69,33 @@ const {
         background: rgba(236, 235, 227, 0.06);
         border-color: rgba(236, 235, 227, 0.16);
       }
+      .backhome {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin: 4px 0 18px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        border: 1px solid var(--line-2);
+        border-radius: 999px;
+        padding: 7px 14px;
+        text-decoration: none;
+        transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+      }
+      .backhome:hover {
+        color: var(--ink);
+        border-color: rgba(236, 235, 227, 0.22);
+        background: rgba(236, 235, 227, 0.05);
+      }
+      .backhome .ar {
+        transition: transform 0.2s ease;
+      }
+      .backhome:hover .ar {
+        transform: translateX(-3px);
+      }
       .foot {
         position: relative;
         z-index: 2;
@@ -89,8 +119,6 @@ const {
       <a class="brand" href="/"><span class="dot"></span> MarketMind&nbsp;AI</a>
       <nav class="tabs">
         <a href="/" class={activeTab === "analyze" ? "on" : ""} data-i18n="nav.analyze">Analyze</a>
-        <a href="/" class={activeTab === "batch" ? "on" : ""} data-i18n="nav.batch">Batch · CSV</a>
-        <a href="/" class={activeTab === "history" ? "on" : ""} data-i18n="nav.history">History</a>
       </nav>
       <div class="topright">
         <div class="langtoggle tabs">
@@ -102,6 +130,13 @@ const {
     </header>
 
     <main>
+      {
+        !home && (
+          <a class="backhome" href="/" aria-label="Back to home">
+            <span class="ar">←</span> <span data-i18n="nav.home">Home</span>
+          </a>
+        )
+      }
       <slot />
     </main>
 

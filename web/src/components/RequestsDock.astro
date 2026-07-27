@@ -10,7 +10,11 @@
   <button class="dock-btn" id="mm-dock-btn" aria-expanded="false" aria-controls="mm-dock-panel">
     <span class="dock-ic">≣</span>
     <span data-i18n="dock.title">Analyses</span>
-    <span class="dock-badge" id="mm-dock-badge" hidden>0</span>
+    <span class="dock-counts" id="mm-dock-counts">
+      <span class="dc dc-run" id="mm-dc-run" title="processing"><span class="dc-spin"></span><b>0</b></span>
+      <span class="dc dc-done" id="mm-dc-done" title="ready">✓<b>0</b></span>
+      <span class="dc dc-failed" id="mm-dc-failed" title="failed">✕<b>0</b></span>
+    </span>
   </button>
   <div class="dock-panel" id="mm-dock-panel" hidden>
     <div class="dock-head">
@@ -36,11 +40,22 @@
   }
   .dock-btn:hover { border-color: rgba(236,188,78,.4); transform: translateY(-1px); }
   .dock-btn .dock-ic { font-size: 15px; color: var(--gold); }
-  .dock-badge {
-    min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
-    background: var(--gold); color: #1a1509; font-size: 11px; font-weight: 700;
-    display: inline-flex; align-items: center; justify-content: center;
+  /* count chips: processing · finished · errors — always visible, dimmed at zero */
+  .dock-counts { display: inline-flex; align-items: center; gap: 8px; margin-left: 4px; padding-left: 10px; border-left: 1px solid var(--line-2); }
+  .dock-counts .dc {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 700;
+    font-family: var(--font-mono); transition: opacity .2s;
   }
+  .dock-counts .dc.zero { opacity: .32; }
+  .dock-counts .dc b { font-weight: 700; }
+  .dock-counts .dc-run { color: var(--gold); }
+  .dock-counts .dc-done { color: var(--mint); }
+  .dock-counts .dc-failed { color: #e96a4c; }
+  .dock-counts .dc-spin {
+    width: 11px; height: 11px; border-radius: 50%; border: 2px solid rgba(236,188,78,.3);
+    border-top-color: var(--gold); animation: spin 1s linear infinite;
+  }
+  .dock-counts .dc.zero .dc-spin { animation: none; }
   .dock-panel {
     position: absolute; right: 0; bottom: calc(100% + 10px); width: min(360px, 90vw);
     max-height: min(60vh, 520px); overflow-y: auto; border: 1px solid var(--line);
@@ -219,20 +234,35 @@
       panel: document.getElementById("mm-dock-panel"),
       list: document.getElementById("mm-dock-list"),
       empty: document.getElementById("mm-dock-empty"),
-      badge: document.getElementById("mm-dock-badge"),
       clear: document.getElementById("mm-dock-clear"),
+      dcRun: document.getElementById("mm-dc-run"),
+      dcDone: document.getElementById("mm-dc-done"),
+      dcFailed: document.getElementById("mm-dc-failed"),
     };
   }
 
+  // Update a count chip's number and dim it when zero.
+  function setChip(chip: HTMLElement | null, n: number): void {
+    if (!chip) return;
+    const b = chip.querySelector("b");
+    if (b) b.textContent = String(n);
+    chip.classList.toggle("zero", n === 0);
+  }
+
   function render(): void {
-    const { list, empty, badge } = els();
-    if (!list || !empty || !badge) return;
+    const { list, empty, dcRun, dcDone, dcFailed } = els();
+    if (!list || !empty) return;
     const reqs = loadRequests();
     list.innerHTML = "";
     empty.style.display = reqs.length ? "none" : "block";
-    const pending = reqs.filter((r) => !isTerminalStatus(r.status)).length;
-    badge.textContent = String(pending);
-    (badge as HTMLElement).hidden = pending === 0;
+    // Button breakdown: processing (non-terminal), finished (done), errors (failed).
+    const s = (r: StoredRequest) => r.status.toLowerCase();
+    const processing = reqs.filter((r) => !isTerminalStatus(r.status)).length;
+    const done = reqs.filter((r) => s(r) === "done").length;
+    const failed = reqs.filter((r) => s(r) === "failed").length;
+    setChip(dcRun, processing);
+    setChip(dcDone, done);
+    setChip(dcFailed, failed);
 
     reqs.forEach((r: StoredRequest) => {
       const item = document.createElement("div");

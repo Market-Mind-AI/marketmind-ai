@@ -67,15 +67,15 @@ const { showActions = true, fromSlug = false } = Astro.props;
         </div>
       </div>
       <div class="verdict">
-        <div class="vt mono" id="r-vt">Top market</div>
+        <div class="vt mono" id="r-vt" data-i18n="rep.topmarket">Top market</div>
         <h3 id="r-verdict">—</h3>
         <p id="r-summary"></p>
       </div>
     </div>
 
-    <!-- ranking -->
+    <!-- ranking (relabelled to a single-market analysis when only one country) -->
     <div class="sec">
-      <div class="sectitle" data-i18n="rep.ranking">Market Opportunity ranking</div>
+      <div class="sectitle" id="r-ranking-title" data-i18n="rep.ranking">Market Opportunity ranking</div>
       <div class="mkts" id="r-ranking"></div>
     </div>
 
@@ -199,7 +199,13 @@ const { showActions = true, fromSlug = false } = Astro.props;
   }
   .mkt .tag.cap { color: #f0a892; border-color: rgba(233,106,76,.35); }
   .mkt .tag.warn { color: #ecbc4e; border-color: rgba(236,188,78,.45); background: rgba(236,188,78,.06); cursor: help; }
+  .mkt .tag.king { color: #ecbc4e; border-color: rgba(236,188,78,.55); background: rgba(236,188,78,.09); }
   .mkt.excluded { opacity: .6; }
+  /* off-request champion (the product's best market, shown for benchmark) */
+  .mkt .fl .crown { font-size: 18px; width: 22px; text-align: center; filter: drop-shadow(0 0 6px rgba(236,188,78,.5)); }
+  .mkt.champion { border-color: rgba(236,188,78,.5); background: rgba(236,188,78,.05); }
+  .mkt.champion:hover { border-color: rgba(236,188,78,.8); }
+  .mkt.not-requested { border-style: dashed; }
 
   /* narrative */
   .narrative { display: flex; flex-direction: column; gap: 14px; }
@@ -305,7 +311,11 @@ const { showActions = true, fromSlug = false } = Astro.props;
     thead.innerHTML =
       `<tr><th class="metric">${t("rep.metric")}</th>` +
       countries
-        .map((c) => `<th><span class="fg">${flag(c.country)}</span> ${escapeHtml(countryName(c.country))}</th>`)
+        .map((c) => {
+          const crown = c.is_champion ? `<span class="crown" title="${escapeHtml(t("rep.champion"))}">👑</span> ` : "";
+          const cls = c.is_champion ? ' class="champion"' : "";
+          return `<th${cls}>${crown}<span class="fg">${flag(c.country)}</span> ${escapeHtml(countryName(c.country))}</th>`;
+        })
         .join("") +
       `</tr>`;
     table.appendChild(thead);
@@ -372,13 +382,26 @@ const { showActions = true, fromSlug = false } = Astro.props;
       return my - mx;
     });
 
+    // A result flagged `requested === false` is the off-request reference
+    // "champion" (the product's best-MOS market), surfaced for benchmark only.
+    const isRequested = (r: MosResult) => r.requested !== false;
+    const requestedResults = results.filter(isRequested);
+    // Single-market framing follows the REQUESTED markets: a champion added for
+    // benchmark doesn't turn a 1-country request into a ranking (no rank #s).
+    const single = requestedResults.length <= 1;
+
     // header
     document.getElementById("r-title")!.textContent = a.canonical_title ?? "Product";
     const scored = results.filter(isScored);
-    const top = scored[0] ?? results[0];
+    // The big scorecard highlights the best REQUESTED market (not the off-request
+    // champion), so the user's own pick stays the headline.
+    const top = scored.find(isRequested) ?? scored[0] ?? results[0];
     const period = results[0]?.period_key ?? "";
     document.getElementById("r-when")!.textContent =
-      [`${results.length} ${t("rep.ranking").toLowerCase()}`, period ? `${t("rep.period")} ${period}` : ""]
+      [
+        single ? "" : `${requestedResults.length} ${t("rep.ranking").toLowerCase()}`,
+        period ? `${t("rep.period")} ${period}` : "",
+      ]
         .filter(Boolean)
         .join(" · ");
 
@@ -394,6 +417,11 @@ const { showActions = true, fromSlug = false } = Astro.props;
 
     const vt = document.getElementById("r-vt")!;
     vt.style.color = tier.color;
+    vt.textContent = single ? t("rep.themarket") : t("rep.topmarket");
+    // ranking section title: "ranking" for many, "analysis" for a single market
+    document.getElementById("r-ranking-title")!.textContent = single
+      ? t("rep.analysis")
+      : t("rep.ranking");
     document.getElementById("r-verdict")!.innerHTML = top
       ? `<span>${flag(top.country)}</span>${countryName(top.country)}`
       : "—";
@@ -427,11 +455,17 @@ const { showActions = true, fromSlug = false } = Astro.props;
     );
     const ranking = document.getElementById("r-ranking")!;
     ranking.innerHTML = "";
-    results.forEach((r, i) => {
+    let rank = 0; // rank # counts only requested markets (champion is crowned, not ranked)
+    results.forEach((r) => {
       const m = mosOf(r);
       const excluded = !!r.excluded_reason;
+      const requested = isRequested(r);
+      const champ = !!r.is_champion;
+      if (requested) rank += 1;
       const scoreHtml = m !== null ? `${Math.round(m)}<small>/100</small>` : `<small>${t("rep.na")}</small>`;
       const tags: string[] = [];
+      // Off-request champion: flag it clearly as a benchmark, not a picked market.
+      if (!requested) tags.push(`<span class="tag king">👑 ${t("rep.champion")}</span>`);
       if (r.capped_by) tags.push(`<span class="tag cap">${t("rep.cappedby")} ${r.capped_by}</span>`);
       if (excluded) tags.push(`<span class="tag">${t("rep.excluded")}: ${r.excluded_reason}</span>`);
       const band = r.mos_interpretation ?? r.explanation ?? "";
@@ -444,14 +478,23 @@ const { showActions = true, fromSlug = false } = Astro.props;
       const toggleHtml = ev
         ? `<button class="mkt-toggle" aria-expanded="false" aria-label="Expand details">▸</button>`
         : "";
+      // Requested markets get a rank # (unless single); the champion gets a crown.
+      const markHtml = champ
+        ? `<span class="crown" title="${escapeHtml(t("rep.champion"))}">👑</span>`
+        : !requested
+          ? ""
+          : single
+            ? ""
+            : `<span class="rk">#${rank}</span>`;
       const card = el(
         "div",
-        `<div class="mh"><div class="fl"><span class="rk">#${i + 1}</span><span class="fg">${flag(r.country)}</span>${countryName(r.country)}</div>` +
+        `<div class="mh"><div class="fl">${markHtml}<span class="fg">${flag(r.country)}</span>${countryName(r.country)}</div>` +
           `<div class="mh-right"><div class="sc">${scoreHtml}</div>${toggleHtml}</div></div>` +
           `<div class="mtrack"><div class="mfill"></div></div>` +
           (band ? `<div class="band">${band}</div>` : "") +
           (tags.length ? `<div class="flags">${tags.join("")}</div>` : ""),
-        "mkt" + (excluded ? " excluded" : "") + (ev ? " has-detail" : ""),
+        "mkt" + (excluded ? " excluded" : "") + (ev ? " has-detail" : "") + (champ ? " champion" : "") +
+          (!requested ? " not-requested" : ""),
       );
       ranking.appendChild(card);
       const fill = card.querySelector<HTMLElement>(".mfill")!;
@@ -484,11 +527,14 @@ const { showActions = true, fromSlug = false } = Astro.props;
       }
     });
 
-    // comparison table — MOS + every deterministic score across all countries
+    // comparison table — MOS + every deterministic score across all countries.
+    // Shown whenever there are ≥2 markets, so a single requested market still
+    // gets a comparison against its off-request champion (nothing to compare
+    // when there's only one market total).
     const orderedEv = results
       .map((r) => evByCountry.get(r.country))
       .filter((e): e is CountryEvidence => !!e);
-    buildComparison(orderedEv);
+    buildComparison(orderedEv.length >= 2 ? orderedEv : []);
 
     // narrative
     const narrSec = document.getElementById("r-narrative-sec")!;
@@ -541,7 +587,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
     const bar = document.getElementById("anbar");
     if (bar) bar.style.width = "100%";
     document.querySelectorAll("#steps .st").forEach((s) => s.classList.remove("run"));
-    if (title) title.textContent = "Analysis failed";
+    if (title) title.textContent = t("rep.failed");
     if (errBox) {
       errBox.style.display = "block";
       errBox.textContent = message;

@@ -141,6 +141,8 @@ export interface MosResult {
   availability_status: string;
   excluded_reason: string | null;
   computed_at: string;
+  requested?: boolean; // false = off-request reference "champion" (best market for the product)
+  is_champion?: boolean; // the highest-MOS market (crowned 👑)
 }
 
 /* ---------- rich evidence packet (breakdown) — mirrors the Core packet ---------- */
@@ -175,6 +177,8 @@ export interface CountryEvidence {
   signals: SignalEvidence[];
   demand_confidence?: string | null; // "low" = demand likely undercounted (missing native term)
   demand_confidence_note?: string | null;
+  requested?: boolean; // false = off-request reference "champion"
+  is_champion?: boolean; // the highest-MOS market (crowned 👑)
 }
 
 export interface DemandRuler {

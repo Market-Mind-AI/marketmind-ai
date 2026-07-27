@@ -13,16 +13,16 @@ import ReportView from "../components/ReportView.astro";
        hard reload / deep-link under static output; ReportView reads the id from
        the URL and polls the Core itself. -->
   <section class="screen" id="fb-report" style="display: none;">
-    <div class="eyebrow" id="fb-report-eyebrow" style="display: none;">Shared report</div>
+    <div class="eyebrow" id="fb-report-eyebrow" style="display: none;" data-i18n="rep.shared">Shared report</div>
     <ReportView showActions={true} fromSlug={false} />
   </section>
 
   <!-- genuine 404 -->
   <section class="screen" id="fb-404" style="display: none;">
     <div class="eyebrow">404</div>
-    <h1>This page <em>drifted off</em>.</h1>
-    <p class="sub">We couldn't find what you were looking for.</p>
-    <p style="margin-top: 24px;"><a class="btn" href="/">Start an analysis <span class="ar">→</span></a></p>
+    <h1 data-i18n-html="nf.title">This page <em>drifted off</em>.</h1>
+    <p class="sub" data-i18n="nf.sub">We couldn't find what you were looking for.</p>
+    <p style="margin-top: 24px;"><a class="btn" href="/"><span data-i18n="rep.start">Start an analysis</span> <span class="ar">→</span></a></p>
   </section>
 </Base>
 

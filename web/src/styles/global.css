@@ -632,6 +632,14 @@ textarea::placeholder {
 .cmp thead th .fg {
   font-size: 15px;
 }
+/* off-request champion column — highlighted gold with its crown */
+.cmp thead th.champion {
+  color: var(--gold);
+  background: #1b1a10;
+}
+.cmp thead th.champion .crown {
+  filter: drop-shadow(0 0 5px rgba(236, 188, 78, 0.5));
+}
 .cmp th.metric,
 .cmp td.metric {
   text-align: left;
