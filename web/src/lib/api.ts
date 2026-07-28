@@ -59,8 +59,10 @@ export type ImageMediaType =
 
 /** POST /catalog/identify-image — synchronous vision + enrichment call. */
 export async function identifyImage(params: {
-  imageBase64: string;
-  mediaType: ImageMediaType;
+  // Image is optional — the product can be identified from the photo OR from the
+  // text description (hintText). At least one must be provided.
+  imageBase64?: string | null;
+  mediaType?: ImageMediaType | null;
   hintText?: string;
   countries: string[];
 }): Promise<IdentifyImageResult> {
@@ -68,8 +70,8 @@ export async function identifyImage(params: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      image_base64: params.imageBase64,
-      image_media_type: params.mediaType,
+      image_base64: params.imageBase64 ?? null,
+      image_media_type: params.imageBase64 ? (params.mediaType ?? null) : null,
       hint_text: params.hintText ?? null,
       countries: params.countries,
     }),

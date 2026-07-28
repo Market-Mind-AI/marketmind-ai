@@ -29,7 +29,7 @@ import Base from "../layouts/Base.astro";
         <div class="lab"><span data-i18n="idx.description">Description</span><span data-i18n="idx.freetext">free text</span></div>
         <textarea id="desc" name="description" spellcheck="false" required
           data-i18n-ph="idx.placeholder"
-          placeholder="Describe your product in a sentence or two…">Vou começar a vender air fryer, nos paises selecionados, porem não sei se são potenciais mercados e como está a economia deles, se o momento agora é propício para isso.</textarea>
+          placeholder="Describe your product in a sentence or two…"></textarea>
       </div>
     </form>
 
@@ -239,7 +239,6 @@ import Base from "../layouts/Base.astro";
     slugForId,
     saveRequest,
     fetchCountries,
-    DEFAULT_COUNTRIES,
     flag,
     type IdentifyImageResult,
   } from "../lib/api";
@@ -254,7 +253,7 @@ import Base from "../layouts/Base.astro";
 
   // Flow state (persists — no navigation between upload and review).
   let files: File[] = [];
-  let selected = new Set<string>(DEFAULT_COUNTRIES);
+  let selected = new Set<string>(); // no countries pre-selected — user picks
   let identified: IdentifyImageResult | null = null;
   let userPrompt = ""; // the buyer's free-text description — carried through to /analyze
 
@@ -340,24 +339,6 @@ import Base from "../layouts/Base.astro";
     );
     dropzone.addEventListener("drop", (e) => addFiles((e as DragEvent).dataTransfer?.files ?? null));
 
-    // Default sample image (dev convenience): preload web/public/sample-air-fryer.jpg
-    // so tests don't need a manual upload. Silently skipped when absent — the
-    // manual dropzone still works.
-    async function loadDefaultImage() {
-      if (files.length) return;
-      try {
-        const res = await fetch("/sample-air-fryer.jpg", { cache: "force-cache" });
-        if (!res.ok) return;
-        const blob = await res.blob();
-        if (files.length) return; // a real upload won the race
-        files.push(new File([blob], "sample-air-fryer.jpg", { type: blob.type || "image/jpeg" }));
-        renderThumbs();
-      } catch {
-        /* no sample image available — fine */
-      }
-    }
-    void loadDefaultImage();
-
     // country picker — fetched from the Core (GET /countries), grouped by
     // continent and alphabetical within each (the API returns that order).
     const cpick = document.getElementById("cpick")!;
@@ -398,19 +379,22 @@ import Base from "../layouts/Base.astro";
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const desc = (document.getElementById("desc") as HTMLTextAreaElement).value.trim();
-      if (!desc) { statusEl.textContent = t("idx.err.desc"); return; }
-      if (files.length === 0) { statusEl.textContent = t("idx.err.img"); return; }
+      // The product can come from the IMAGE or the DESCRIPTION — at least one is
+      // required (the image is no longer mandatory). Consistency check before
+      // moving on to the product-detail (review) screen.
+      if (!desc && files.length === 0) { statusEl.textContent = t("idx.err.productinfo"); return; }
       if (selected.size === 0) { statusEl.textContent = t("idx.err.markets"); return; }
 
       userPrompt = desc;
       setLoading(submitBtn, true, t("idx.identifying"));
       statusEl.textContent = t("idx.identifying.hint");
       try {
-        const { base64, mediaType } = await fileToImagePayload(files[0]);
+        // Image is optional: send it only if the user added one.
+        const img = files.length > 0 ? await fileToImagePayload(files[0]) : null;
         identified = await identifyImage({
-          imageBase64: base64,
-          mediaType,
-          hintText: desc,
+          imageBase64: img?.base64 ?? null,
+          mediaType: img?.mediaType ?? null,
+          hintText: desc || undefined,
           countries: Array.from(selected),
         });
         statusEl.textContent = "";
