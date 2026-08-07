@@ -1,0 +1,36 @@
+# Keep the build context small and, more importantly, deterministic.
+#
+# node_modules and dist matter most: both exist locally and would be copied
+# over the ones the build stage produces, shipping whatever was last built on a
+# developer's laptop instead of what CI just compiled.
+node_modules/
+web/node_modules/
+dist/
+web/dist/
+web/.output/
+web/.astro/
+
+# .env files are excluded so a developer's local PUBLIC_API_BASE
+# (http://localhost:8004) can never leak into an image. The build writes its
+# own .env.production from the PUBLIC_API_BASE build arg — see Dockerfile.
+.env
+.env.*
+web/.env
+web/.env.*
+!.env.example
+!web/.env.example
+
+.git/
+.github/
+.gitignore
+.dockerignore
+docs/
+*.md
+# The two standalone mockups at the repo root, named explicitly rather than by
+# a *.html glob — a glob here is one directory reshuffle away from silently
+# dropping something real out of web/public.
+marketmind-app.html
+marketmind-plan.html
+Makefile
+.DS_Store
+*.log
