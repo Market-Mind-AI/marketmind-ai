@@ -210,6 +210,9 @@ const { showActions = true, fromSlug = false } = Astro.props;
   /* narrative */
   .narrative { display: flex; flex-direction: column; gap: 14px; }
   .narrative p { font-size: 15.5px; line-height: 1.7; color: var(--ink-soft); font-weight: 330; }
+  /* Distinguishable from real content at a glance: the narrative arrives after
+     the scores, so this placeholder must not read as the analysis itself. */
+  .narrative p.narrative-pending { opacity: 0.55; font-style: italic; }
 
   /* action bar */
   .actions {
@@ -242,6 +245,9 @@ const { showActions = true, fromSlug = false } = Astro.props;
   import { t } from "../lib/i18n";
 
   const POLL_MS = 2500;
+  // The narrative lands after the scores; gpt-4o takes ~20s for it.
+  const NARRATIVE_POLL_MS = 2500;
+  const NARRATIVE_MAX_MS = 3 * 60 * 1000;
   const MAX_MS = 6 * 60 * 1000; // stop polling after ~6 minutes
 
   function el(tag: string, html: string, cls?: string): HTMLElement {
@@ -370,6 +376,80 @@ const { showActions = true, fromSlug = false } = Astro.props;
   }
 
   /* ---------- render ---------- */
+  /**
+   * The narrative is no longer part of the answer the Core returns.
+   *
+   * It is a single LLM call that used to sit between a finished MOS and the
+   * response — 249s of a 192s analysis, measured. The Core now marks the
+   * request done with its scores and attaches the text a moment later, so
+   * GET /analyze/{id} legitimately returns status=done with explanation=null
+   * for a short window.
+   *
+   * Three states, therefore, not two: absent-and-coming, present, and
+   * absent-for-good. Hiding the section on null would have shown a complete
+   * report with a silently missing section and no reason given.
+   */
+  function renderNarrative(text: string | null, pending = false): void {
+    const sec = document.getElementById("r-narrative-sec")!;
+    const body = document.getElementById("r-narrative")!;
+    body.innerHTML = "";
+
+    if (text && text.trim()) {
+      sec.style.display = "block";
+      text
+        .split(/\n\s*\n/)
+        .map((p) => p.trim())
+        .filter(Boolean)
+        .forEach((p) => {
+          const node = document.createElement("p");
+          node.textContent = p;
+          body.appendChild(node);
+        });
+      return;
+    }
+
+    if (pending) {
+      sec.style.display = "block";
+      const node = document.createElement("p");
+      node.className = "narrative-pending";
+      node.textContent = t("rep.narrativePending");
+      body.appendChild(node);
+      return;
+    }
+
+    sec.style.display = "none";
+  }
+
+  /**
+   * Keeps asking for just the narrative once the scores are already on screen.
+   *
+   * Deliberately not the SSE stream: that closes on the terminal status, and
+   * the status is already terminal by the time this matters. Bounded so a
+   * narrative that never lands — the Core swallows its failures, by design,
+   * since the analysis is already complete — degrades to the section simply
+   * disappearing rather than a spinner that spins forever.
+   */
+  function awaitNarrative(id: string): void {
+    const deadline = Date.now() + NARRATIVE_MAX_MS;
+    const poll = async (): Promise<void> => {
+      if (Date.now() > deadline) {
+        renderNarrative(null); // gave up: hide rather than pretend
+        return;
+      }
+      try {
+        const a = await getAnalysis(id);
+        if (a.explanation && a.explanation.trim()) {
+          renderNarrative(a.explanation);
+          return;
+        }
+      } catch {
+        /* transient — keep waiting until the deadline */
+      }
+      setTimeout(poll, NARRATIVE_POLL_MS);
+    };
+    setTimeout(poll, NARRATIVE_POLL_MS);
+  }
+
   function render(a: AnalysisStatusResponse, showActions: boolean) {
     const state = document.getElementById("r-state")!;
     const body = document.getElementById("r-body")!;
@@ -536,24 +616,8 @@ const { showActions = true, fromSlug = false } = Astro.props;
       .filter((e): e is CountryEvidence => !!e);
     buildComparison(orderedEv.length >= 2 ? orderedEv : []);
 
-    // narrative
-    const narrSec = document.getElementById("r-narrative-sec")!;
-    const narr = document.getElementById("r-narrative")!;
-    narr.innerHTML = "";
-    if (a.explanation && a.explanation.trim()) {
-      narrSec.style.display = "block";
-      a.explanation
-        .split(/\n\s*\n/)
-        .map((p) => p.trim())
-        .filter(Boolean)
-        .forEach((p) => {
-          const node = document.createElement("p");
-          node.textContent = p;
-          narr.appendChild(node);
-        });
-    } else {
-      narrSec.style.display = "none";
-    }
+    // narrative — rendered separately because it arrives after the scores
+    renderNarrative(a.explanation);
 
     // action bar
     if (showActions) {
@@ -634,6 +698,12 @@ const { showActions = true, fromSlug = false } = Astro.props;
           stopped = true;
           await fetchCountries().catch(() => []); // names/flags resolve from this cache
           render(a, showActions);
+          // Scores are on screen. If the Core has not attached the narrative
+          // yet, show it as pending and keep asking for that alone.
+          if (!a.explanation || !a.explanation.trim()) {
+            renderNarrative(null, true);
+            awaitNarrative(id);
+          }
           return;
         }
       } catch (err) {
