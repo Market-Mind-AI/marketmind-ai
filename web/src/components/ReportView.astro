@@ -454,7 +454,19 @@ const { showActions = true, fromSlug = false } = Astro.props;
     const state = document.getElementById("r-state")!;
     const body = document.getElementById("r-body")!;
 
+    // Off-request champion first, then the requested markets by MOS.
+    //
+    // Sorting purely by MOS buried it: a champion scoring 66 landed between the
+    // #1 requested market at 69 and the #2 at 42, reading as an unnumbered card
+    // dropped into the middle of the ranking. It is not a rank position — it is
+    // the answer to a different question ("the product's best market, which you
+    // did not ask about"), so it belongs above the ranking rather than inside
+    // it. The rank numbers already count requested markets only, so pinning it
+    // to the top leaves #1/#2/#3 contiguous.
     const results = (a.result ?? []).slice().sort((x, y) => {
+      const cx = x.requested === false ? 0 : 1;
+      const cy = y.requested === false ? 0 : 1;
+      if (cx !== cy) return cx - cy;
       const mx = mosOf(x), my = mosOf(y);
       if (mx === null && my === null) return 0;
       if (mx === null) return 1;
