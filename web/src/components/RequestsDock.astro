@@ -314,15 +314,18 @@
   function ensureSub(r: StoredRequest): void {
     if (isTerminalStatus(r.status) || subs.has(r.id)) return;
     const title = r.title || "Analysis";
-    const dispose = subscribeStatus(r.id, (status) => {
+    const dispose = subscribeStatus(r.id, (event) => {
+      const status = event.status;
       patchRequest(r.id, { status });
       render();
-      if (isTerminalStatus(status)) {
-        const s = subs.get(r.id);
-        if (s) { s(); subs.delete(r.id); }
-        if (status.toLowerCase() === "done") toast(`✓ ${title} — ${t("dock.done")}`, "ok", r.id);
-        else toast(`✕ ${title} — ${t("dock.failed")}`, "err", r.id);
-      }
+      if (!isTerminalStatus(status)) return false;
+      const s = subs.get(r.id);
+      if (s) { s(); subs.delete(r.id); }
+      if (status.toLowerCase() === "done") toast(`✓ ${title} — ${t("dock.done")}`, "ok", r.id);
+      else toast(`✕ ${title} — ${t("dock.failed")}`, "err", r.id);
+      // The dock announces the scores; it does not wait for the narrative, so
+      // it is finished with the stream the moment the status is terminal.
+      return true;
     });
     subs.set(r.id, dispose);
   }

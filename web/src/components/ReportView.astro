@@ -232,6 +232,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
     getAnalysis,
     fetchCountries,
     isTerminalStatus,
+    subscribeStatus,
     num,
     flag,
     countryName,
@@ -246,9 +247,9 @@ const { showActions = true, fromSlug = false } = Astro.props;
   import { t } from "../lib/i18n";
 
   const POLL_MS = 2500;
-  // The narrative lands after the scores; gpt-4o takes ~20s for it.
-  const NARRATIVE_POLL_MS = 2500;
-  const NARRATIVE_MAX_MS = 3 * 60 * 1000;
+  // Used only while the live stream is not delivering. The stream pushes every
+  // change, so polling alongside it is duplicated work and duplicated redraws.
+  const POLL_BACKUP_MS = 15000;
   const MAX_MS = 6 * 60 * 1000; // stop polling after ~6 minutes
 
   function el(tag: string, html: string, cls?: string): HTMLElement {
@@ -461,36 +462,6 @@ const { showActions = true, fromSlug = false } = Astro.props;
     }
 
     sec.style.display = "none";
-  }
-
-  /**
-   * Keeps asking for just the narrative once the scores are already on screen.
-   *
-   * Deliberately not the SSE stream: that closes on the terminal status, and
-   * the status is already terminal by the time this matters. Bounded so a
-   * narrative that never lands — the Core swallows its failures, by design,
-   * since the analysis is already complete — degrades to the section simply
-   * disappearing rather than a spinner that spins forever.
-   */
-  function awaitNarrative(id: string): void {
-    const deadline = Date.now() + NARRATIVE_MAX_MS;
-    const poll = async (): Promise<void> => {
-      if (Date.now() > deadline) {
-        renderNarrative(null); // gave up: hide rather than pretend
-        return;
-      }
-      try {
-        const a = await getAnalysis(id);
-        if (a.explanation && a.explanation.trim()) {
-          renderNarrative(a.explanation);
-          return;
-        }
-      } catch {
-        /* transient — keep waiting until the deadline */
-      }
-      setTimeout(poll, NARRATIVE_POLL_MS);
-    };
-    setTimeout(poll, NARRATIVE_POLL_MS);
   }
 
   function render(a: AnalysisStatusResponse, showActions: boolean) {
@@ -739,45 +710,105 @@ const { showActions = true, fromSlug = false } = Astro.props;
     startLoader();
     const started = Date.now();
     let stopped = false;
+    let scoresShown = false;
+
+    /** Draw whatever the Core has now. Returns true when nothing is left to wait for. */
+    const draw = async (): Promise<boolean> => {
+      const a = await getAnalysis(id);
+      if (a.status.toLowerCase() === "failed") {
+        fail(a.error_message ?? "Analysis failed.");
+        return true;
+      }
+      if (!isTerminalStatus(a.status)) {
+        advanceLoader(a.progress); // not terminal: say what it is doing
+        return false;
+      }
+      const narrative = a.explanation && a.explanation.trim() ? a.explanation : null;
+      if (!scoresShown) {
+        scoresShown = true;
+        await fetchCountries().catch(() => []); // names/flags resolve from this cache
+        render(a, showActions); // render() draws the narrative it was given
+      } else if (narrative) {
+        renderNarrative(narrative);
+      }
+      // The scores are the answer and the text is a reading of them, so the
+      // scores go up without it and the section says the text is coming.
+      if (!narrative) renderNarrative(null, true);
+      return Boolean(narrative);
+    };
+
+    const finish = () => {
+      stopped = true;
+    };
+
+    /**
+     * Listen, do not ask.
+     *
+     * The Core pushes on every change — the progress line, the scores, and the
+     * narrative, which lands after the scores and is the slow one. It holds the
+     * stream open past `done` until the text is there, so the moment the answer
+     * exists the screen is told. Polling for it meant the answer sat finished in
+     * the database while the screen still said it was being written.
+     *
+     * Polling stays as the fallback, because SSE is the first thing a proxy
+     * breaks and a silent stream must not become a page that never finishes.
+     */
+    let usingStream = false;
+    const closeStream = subscribeStatus(
+      id,
+      (event) => {
+        if (stopped) return true;
+        usingStream = true;
+        if (event.status.toLowerCase() === "failed") {
+          void draw().then(finish);
+          return true;
+        }
+        if (!isTerminalStatus(event.status)) {
+          advanceLoader(event.progress ?? null);
+          return false;
+        }
+        // Terminal. The scores go up now; the narrative when it lands, or the
+        // section disappears when the Core says it is not coming.
+        const abandoned = event.narrative_abandoned === true;
+        void draw().then((complete) => {
+          if (abandoned && !complete) renderNarrative(null); // hide rather than pretend
+          if (complete || abandoned) finish();
+        });
+        return Boolean(event.has_explanation) || abandoned;
+      },
+      () => {
+        // The stream died. The poll below is already running and takes over.
+        usingStream = false;
+      },
+    );
 
     const tick = async () => {
       if (stopped) return;
       try {
-        const a = await getAnalysis(id);
-        if (a.status.toLowerCase() === "failed") {
-          stopped = true;
-          fail(a.error_message ?? "Analysis failed.");
+        if (await draw()) {
+          finish();
+          closeStream();
           return;
         }
-        if (isTerminalStatus(a.status)) {
-          stopped = true;
-          await fetchCountries().catch(() => []); // names/flags resolve from this cache
-          render(a, showActions);
-          // Scores are on screen. If the Core has not attached the narrative
-          // yet, show it as pending and keep asking for that alone.
-          if (!a.explanation || !a.explanation.trim()) {
-            renderNarrative(null, true);
-            awaitNarrative(id);
-          }
-          return;
-        }
-        // Not terminal: show what it is doing right now.
-        advanceLoader(a.progress);
       } catch (err) {
         // A share view opened before the request exists (404) keeps polling;
         // any other error stops with a message.
         if (err instanceof Error && err.message !== "Analysis not found") {
-          stopped = true;
+          finish();
+          closeStream();
           fail(err.message);
           return;
         }
       }
       if (Date.now() - started > MAX_MS) {
-        stopped = true;
+        finish();
+        closeStream();
         fail("Timed out waiting for the analysis to finish.");
         return;
       }
-      if (!stopped) setTimeout(tick, POLL_MS);
+      // Slow right down while the stream is doing the work: the poll is only
+      // here in case the stream is not.
+      setTimeout(tick, usingStream ? POLL_BACKUP_MS : POLL_MS);
     };
     tick();
   }

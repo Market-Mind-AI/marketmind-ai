@@ -406,17 +406,29 @@ export function idFromSlug(slug: string): string {
 export interface StatusEvent {
   request_id: string;
   status: string; // pending | running | done | failed | not_found
+  /** What the run is waiting on right now. Null once it is finished. */
+  progress?: string | null;
+  /** Whether the narrative is attached. It lands after the scores. */
+  has_explanation?: boolean;
+  /** The narrative did not arrive in time; the scores stand without it. */
+  narrative_abandoned?: boolean;
   timeout?: boolean;
 }
 
 /**
- * Subscribe to GET /analyze/{id}/stream. Calls `onStatus` on each status event.
- * The Core closes the stream on a terminal state; we close the EventSource too
- * (so the browser does not auto-reconnect). Returns a disposer.
+ * Subscribe to GET /analyze/{id}/stream.
+ *
+ * The Core pushes on every change to status, progress, or whether the narrative
+ * has landed — and it holds the stream open past `done` until the narrative is
+ * there. So a subscriber is told the whole way through and never has to ask.
+ *
+ * `onEvent` returns true when it is finished with the stream (everything it was
+ * waiting for has arrived), which closes the EventSource so the browser does not
+ * reconnect. Returns a disposer for the caller to use on unmount.
  */
 export function subscribeStatus(
   id: string,
-  onStatus: (status: string, event: StatusEvent) => void,
+  onEvent: (event: StatusEvent) => boolean | void,
   onError?: (err: Event) => void,
 ): () => void {
   const source = new EventSource(`${API_BASE}/analyze/${encodeURIComponent(id)}/stream`);
@@ -424,8 +436,7 @@ export function subscribeStatus(
   source.onmessage = (msg: MessageEvent) => {
     try {
       const data = JSON.parse(msg.data) as StatusEvent;
-      onStatus(data.status, data);
-      if (isTerminalStatus(data.status) || data.status === "not_found") close();
+      if (onEvent(data) === true || data.status === "not_found") close();
     } catch {
       /* ignore malformed frame */
     }
