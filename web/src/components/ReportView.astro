@@ -25,11 +25,11 @@ const { showActions = true, fromSlug = false } = Astro.props;
     </div>
     <div class="barwrap"><div class="b" id="anbar"></div></div>
     <div class="steps" id="steps">
-      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step1">Ensuring data freshness</div></div>
-      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step2">Collecting missing signals</div></div>
-      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step3">Computing Cap. 4 indicators</div></div>
-      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step4">Computing the MOS per country</div></div>
-      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step5">Writing the business narrative</div></div>
+      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step1">Ensuring data freshness</div><div class="sd"></div></div>
+      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step2">Collecting missing signals</div><div class="sd"></div></div>
+      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step3">Computing Cap. 4 indicators</div><div class="sd"></div></div>
+      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step4">Computing the MOS per country</div><div class="sd"></div></div>
+      <div class="st" data-res="…"><div class="dotc">✓</div><div class="sl" data-i18n="an.step5">Writing the business narrative</div><div class="sd"></div></div>
     </div>
     <div id="an-error" class="an-error" style="display: none;"></div>
   </div>
@@ -124,6 +124,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
   }
   .steps .st.run { opacity: 1; border-color: rgba(236,188,78,.35); }
   .steps .st.done { opacity: .85; border-color: rgba(95,208,173,.28); }
+  .steps .sd { margin-left: auto; font-variant-numeric: tabular-nums; opacity: .7; font-size: .85em; }
   .steps .dotc {
     width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
     font-size: 12px; color: transparent; border: 1px solid var(--line-2); flex: none;
@@ -349,30 +350,72 @@ const { showActions = true, fromSlug = false } = Astro.props;
     table.appendChild(tbody);
   }
 
-  /* ---------- analyzing loader animation ---------- */
-  let stepTimer: ReturnType<typeof setInterval> | undefined;
+  /* ---------- analyzing loader, driven by what the run is actually doing ---------- */
+
+  /**
+   * Which step the backend's progress line belongs to.
+   *
+   * These phrases come from the orchestrator's nodes. An unrecognised one holds
+   * the current step rather than resetting the bar: a run that reports
+   * something new should not look like it started over.
+   */
+  function stepFor(progress: string | null | undefined): number | null {
+    const p = (progress ?? "").toLowerCase();
+    if (!p) return null;
+    if (p.includes("vocabulary")) return 0;
+    if (p.startsWith("collecting") || p.includes("demand ruler")) return 1;
+    if (p.startsWith("measuring")) return 2;
+    if (p.includes("scoring") || p.includes("best market") || p.includes("evidence")) return 3;
+    if (p.includes("explanation")) return 4;
+    return null;
+  }
+
+  /** The ISO3 a progress line names, when it names one ("collecting ESP"). */
+  function countryIn(progress: string | null | undefined): string | null {
+    const m = /\b([A-Z]{3})\b/.exec(progress ?? "");
+    return m ? m[1] : null;
+  }
+
+  let loaderStep = 0;
   function startLoader() {
+    loaderStep = 0;
+    paintLoader();
+  }
+
+  /**
+   * Advance from the run's own progress line instead of a timer.
+   *
+   * It used to animate on an interval and park on the last step: after about
+   * ten seconds the bar stopped meaning anything, while the run still had
+   * minutes of real work left. The backend has been reporting what it is doing
+   * all along — collecting a named country, settling the ruler, scoring — and
+   * none of it reached the screen.
+   */
+  function advanceLoader(progress: string | null | undefined) {
+    const step = stepFor(progress);
+    // Never go backwards. Crowning the champion can collect, and a bar that
+    // retreats reads as work being redone.
+    if (step !== null && step > loaderStep) loaderStep = step;
+    paintLoader(progress);
+  }
+
+  function paintLoader(progress?: string | null) {
     const steps = Array.from(document.querySelectorAll<HTMLElement>("#steps .st"));
     const bar = document.getElementById("anbar");
     if (!steps.length) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let i = 0;
-    const advance = () => {
-      steps.forEach((s, k) => {
-        s.classList.toggle("run", k === i);
-        s.classList.toggle("done", k < i);
-      });
-      if (bar) bar.style.width = `${Math.round(((i + 0.5) / steps.length) * 100)}%`;
-      // Advance through the phases once and HOLD on the last (spinning) — never
-      // loop back, which read as "stuck / will never finish".
-      if (i < steps.length - 1) i++;
-    };
-    advance();
-    if (!reduce) stepTimer = setInterval(advance, 1800);
+    steps.forEach((s, k) => {
+      s.classList.toggle("run", k === loaderStep);
+      s.classList.toggle("done", k < loaderStep);
+      // The country the step is on, when the run named one. The label itself
+      // stays translated; only the code is appended.
+      const detail = s.querySelector<HTMLElement>(".sd");
+      if (detail) detail.textContent = k === loaderStep ? (countryIn(progress) ?? "") : "";
+    });
+    if (bar) bar.style.width = `${Math.round(((loaderStep + 0.5) / steps.length) * 100)}%`;
   }
+
   function stopLoader() {
-    if (stepTimer) clearInterval(stepTimer);
-    stepTimer = undefined;
+    loaderStep = 0;
   }
 
   /* ---------- render ---------- */
@@ -718,6 +761,8 @@ const { showActions = true, fromSlug = false } = Astro.props;
           }
           return;
         }
+        // Not terminal: show what it is doing right now.
+        advanceLoader(a.progress);
       } catch (err) {
         // A share view opened before the request exists (404) keeps polling;
         // any other error stops with a message.

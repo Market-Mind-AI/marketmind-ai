@@ -201,6 +201,11 @@ export interface EvidencePacket {
 export interface AnalysisStatusResponse {
   request_id: string;
   status: string; // "pending" | "running" | "done" | "failed"
+  // What the run is doing right now ("collecting ESP", "writing the
+  // explanation"). The backend has always sent it; nothing read it, so the
+  // screen showed a timed animation that stopped meaning anything after a few
+  // seconds while the run still had minutes of real work left.
+  progress: string | null;
   canonical_title: string | null;
   user_prompt: string | null;
   result: MosResult[] | null;
