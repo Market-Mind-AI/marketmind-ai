@@ -315,6 +315,18 @@
       <span><b>Cloud-agnostic</b> via Terraform</span>
       <span>v1 · June 2026</span>
     </div>
+    <div class="meta" style="margin-top:14px;border-left:3px solid var(--mint);padding-left:12px;display:block">
+      <b>Nota de 23/09/2026 — o que foi construído difere deste plano.</b>
+      Este é o plano ORIGINAL e fica como está: reescrevê-lo apagaria o registro de
+      &ldquo;planejei, medi, mudei&rdquo;, que é o que se defende. As duas divergências que importam:
+      o <b>vector store</b> (pgvector/ChromaDB) foi <b>removido em 14/08/2026</b> — o catálogo resolve por
+      alias exato &rarr; <code>pg_trgm</code> &rarr; LLM entre candidatos da mesma marca, porque a medição contra os 89
+      termos reais deu 71 resolvidos com 100% de precisão e, nos 18 restantes, nenhuma distância de cosseno
+      decide (<code>quadcopter</code>&asymp;<code>drone</code> é conhecimento, não proximidade de string);
+      e a <b>porta de entrada</b> passou a ser o agente LangGraph (<code>marketmind-orchestrator</code>),
+      com o <code>marketmind-core</code> renomeado para <code>marketmind-scoring</code> e reduzido a motor de método.
+      Detalhe e medições em <code>docs/architecture-plan.md</code> e na transparência técnica do scoring.
+    </div>
 
     <div class="decisions">
       <div class="dchip"><div class="k">Data budget</div><div class="v">Free-tier <span>first</span></div></div>

@@ -1,5 +1,21 @@
 # MarketMind AI — Architecture & Build Plan (TFM)
 
+> **O que foi construído difere deste plano em pontos que valem a defesa (nota de 23/09/2026).**
+>
+> Este documento é o plano ORIGINAL e fica como está de propósito: reescrevê-lo apagaria o registro
+> de "planejei X, medi, mudei para Y", que é justamente o que se defende. O que mudou, e onde está
+> documentado:
+>
+> | Planejado aqui | O que está no ar | Onde está medido |
+> |---|---|---|
+> | Vector store (pgvector / ChromaDB) para identidade de produto | Removido em 14/08/2026. O catálogo resolve por alias exato → `pg_trgm` → LLM entre candidatos da mesma marca | `marketmind-scoring`: `transparencia-tecnica` §1.3, migration 027, e a medição em `config.py` (71 de 89 termos com 100% de precisão no limiar 0.4; nos 18 restantes nenhuma distância de cosseno decide, porque `quadcopter`≈`drone` é conhecimento e não proximidade de string) |
+> | `marketmind-core` como porta de entrada e orquestrador | O agente (`marketmind-orchestrator`, LangGraph) é a porta de entrada desde 21/09/2026; o serviço de método foi renomeado para `marketmind-scoring` | `marketmind-scoring/docs/marketmind-arquitetura-tecnica-python.md` (nota no topo) |
+> | Streamlit | Astro — já anotado como desvio deliberado no próprio plano | este documento |
+>
+> Dívida conhecida: o BANCO do scoring ainda se chama `marketmind_core`, em local e em Azure. Ver a nota
+> em `marketmind-setup-ecossistema.md`.
+
+
 ## Context
 
 This is the architecture plan for **MarketMind AI**, the final Master's project (TFM) for the *Máster en Ingeniería y Desarrollo de Soluciones de IA Generativa* (EBIS), built by 2 students (Alvaro De Marco, Miguel Blanco). The goal: a generative-AI commercial-intelligence platform that ingests a product catalog (CSV/Excel + optional images), enriches each product with **public global data sources**, computes a **Market Opportunity Score (MOS)**, and generates **explainable** commercial recommendations (which markets/regions, pricing, timing). The team also wants **Terraform** so the infra is cloud-agnostic, not locked to one provider.

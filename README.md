@@ -7,7 +7,7 @@ product (a photo + a free-text description) into an **explainable market-opportu
 report**: a Market Opportunity Score (MOS) per country, the resulting ranking, and
 a business narrative — every number computed by the backend, never by the browser.
 
-The backend is the separate **marketmind-core** service (FastAPI, host port
+The backend is the separate **marketmind-orchestrator** service (FastAPI, host port
 `8004`); this app talks to it over HTTP. The former bundled `api/` prototype has
 been removed — the frontend now integrates directly with the real Core.
 
@@ -64,4 +64,4 @@ Clickable HTML prototypes (kept as design references):
 |---|---|
 | Frontend | **Astro + View Transitions API** |
 | State/flow | client-side (static output; dynamic routes resolved client-side) |
-| Backend | **marketmind-core** (separate repo/service, FastAPI, port 8004) |
+| Backend | **marketmind-orchestrator** (separate repo/service, FastAPI) — o agente é a porta de entrada desde 21/09/2026; ele chama o `marketmind-scoring` (antes `marketmind-core`), que é o motor de método. Em dev, `/api` no ingress vai ao orquestrador e `/scoring` ao scoring. |
