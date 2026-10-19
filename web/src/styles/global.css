@@ -484,20 +484,6 @@ textarea::placeholder {
   }
 }
 
-/* ---- speedometer gauge (shared) ---- */
-.spdo {
-  display: block;
-}
-.spdo .spdo-num {
-  fill: var(--ink);
-  font-family: var(--font-display);
-  font-weight: 500;
-  font-size: 40px;
-}
-.spdo.big .spdo-num {
-  font-size: 34px;
-}
-
 /* ---- grouped deterministic scores (dimension bar + nested signal bars) ---- */
 .gs-root {
   display: flex;

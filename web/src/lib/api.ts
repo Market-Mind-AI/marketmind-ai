@@ -1,24 +1,30 @@
-// Typed client for the MarketMind **Core** API (the marketmind-core service).
-// Base URL comes from PUBLIC_API_BASE (exposed to the browser via Astro's
-// PUBLIC_ convention). Falls back to the Core's default host port, 8004.
+// Typed client for the MarketMind API. In the browser this is the
+// **orchestrator** (marketmind-orchestrator, the LangGraph agent) reached at
+// PUBLIC_API_BASE — "/api" in the deployed build, where the ingress routes
+// /api → orchestrator and /scoring → marketmind-scoring. The orchestrator
+// exposes the same /analyze, /catalog and /countries routes as the scoring
+// service it calls, so pointing PUBLIC_API_BASE at the scoring directly
+// (host port 8004) also works, but bypasses the agent.
 //
-// The Core splits the flow into two calls on purpose:
+// The flow is split into two calls on purpose:
 //   1. POST /catalog/identify-image  — vision + enrichment, returns editable
 //      fields (product, per-country search vocabulary, reference candidates).
 //   2. POST /analyze                 — the user-confirmed fields + countries,
-//      returns a request_id (202); poll GET /analyze/{request_id}.
+//      returns a request_id (202). Progress then arrives by SSE on
+//      GET /analyze/{request_id}/stream; GET /analyze/{request_id} is polled
+//      only as a fallback (and to fetch the final payload).
 // The MOS is computed per country by the backend; the browser never scores.
 
 export const API_BASE: string =
   (import.meta.env.PUBLIC_API_BASE as string | undefined)?.replace(/\/$/, "") ??
-  "http://localhost:8004";
+  "http://localhost:8081";
 
 /* ============================ shared shapes ============================ */
 
 /** One country's curated search vocabulary (mirrors app/schemas/catalog.py
  *  LocalizedMarket). Keyed by ISO3 in `localized_markets`, so the country code
  *  lives in the map key, not here. */
-export interface LocalizedMarket {
+interface LocalizedMarket {
   primary_name: string;
   formal_name?: string | null;
   search_terms: string[];
@@ -29,7 +35,7 @@ export interface LocalizedMarket {
 /** One candidate biggest-market (mirrors ReferenceMarket). Carries its own
  *  ISO3 `country`. The largest by real search volume becomes the Demand Volume
  *  ruler ceiling; never scored itself. */
-export interface ReferenceMarket extends LocalizedMarket {
+interface ReferenceMarket extends LocalizedMarket {
   country: string;
 }
 
@@ -38,7 +44,7 @@ export interface ReferenceMarket extends LocalizedMarket {
 export interface IdentifyImageResult {
   entity_key: string;
   canonical_title: string;
-  method: string; // "alias" | "trigram" | "embedding" | "created"
+  method: string; // "alias" | "trigram" | "subtype" | "llm" | "created"
   product_name: string;
   brand: string | null;
   category: string | null;
@@ -51,7 +57,7 @@ export interface IdentifyImageResult {
   confidence: number;
 }
 
-export type ImageMediaType =
+type ImageMediaType =
   | "image/jpeg"
   | "image/png"
   | "image/gif"
@@ -87,7 +93,7 @@ export async function identifyImage(params: {
 /** Body of POST /analyze — the identify-image fields (user-confirmed) plus the
  *  target countries and optional price context. Field names mirror the Core's
  *  AnalyzeRequest exactly (pass-through from identify-image). */
-export interface AnalyzeRequestBody {
+interface AnalyzeRequestBody {
   product_name: string;
   brand?: string | null;
   category?: string | null;
@@ -101,7 +107,7 @@ export interface AnalyzeRequestBody {
   countries: string[];
 }
 
-export interface AnalyzeAcceptedResponse {
+interface AnalyzeAcceptedResponse {
   request_id: string;
   status: string; // "pending"
 }
@@ -183,14 +189,14 @@ export interface CountryEvidence {
   is_champion?: boolean; // the highest-MOS market (crowned 👑)
 }
 
-export interface DemandRuler {
+interface DemandRuler {
   mode: string; // "reference" | "fixed"
   country?: string;
   volume?: number;
   candidates?: { country: string; volume: number }[];
 }
 
-export interface EvidencePacket {
+interface EvidencePacket {
   period_key: string;
   demand_ruler: DemandRuler | null;
   glossary: Record<string, { label: string; meaning: string }>;
@@ -292,15 +298,12 @@ async function errorDetail(res: Response, fallback: string): Promise<string> {
 // resolve from that cache, so a caller must ensure fetchCountries() has resolved
 // before rendering names/flags (each page awaits it on init).
 
-export interface CountryMeta {
+interface CountryMeta {
   iso3: string;
   name: string;
   iso2: string | null;
   continent: string | null;
 }
-
-/** Default target-market basket prefilled in the picker. */
-export const DEFAULT_COUNTRIES: string[] = ["BRA", "USA", "DEU", "JPN"];
 
 let _countries: CountryMeta[] = [];
 const _byIso3 = new Map<string, CountryMeta>();
@@ -329,11 +332,6 @@ export async function fetchCountries(): Promise<CountryMeta[]> {
   }
 }
 
-/** The cached list (empty until fetchCountries() resolves). */
-export function countries(): CountryMeta[] {
-  return _countries;
-}
-
 export function countryMeta(iso3: string): CountryMeta | undefined {
   return _byIso3.get(iso3?.toUpperCase());
 }
@@ -357,7 +355,7 @@ export function flag(code: string): string {
 // color we derive a coarse tier from the number. Thresholds are presentational
 // only (they do not affect any score).
 
-export interface TierMeta {
+interface TierMeta {
   key: "strong" | "moderate" | "weak";
   color: string;
   border: string;
@@ -403,7 +401,7 @@ export function idFromSlug(slug: string): string {
 
 /* ---------- live status stream (SSE) ---------- */
 
-export interface StatusEvent {
+interface StatusEvent {
   request_id: string;
   status: string; // pending | running | done | failed | not_found
   /** What the run is waiting on right now. Null once it is finished. */

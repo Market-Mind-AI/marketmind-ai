@@ -236,7 +236,6 @@ import Base from "../layouts/Base.astro";
     identifyImage,
     analyze,
     fileToImagePayload,
-    slugForId,
     saveRequest,
     fetchCountries,
     flag,
@@ -482,9 +481,6 @@ import Base from "../layouts/Base.astro";
             user_prompt: userPrompt || null,
             countries,
           });
-          try {
-            sessionStorage.setItem(`mm:slug:${res.request_id}`, slugForId(res.request_id));
-          } catch { /* sessionStorage may be unavailable */ }
           // Register in the pending-analyses dock and DON'T navigate: the
           // analysis runs in the background (dock shows it, streams status, and
           // toasts + turns green when done). The user is freed to queue more
