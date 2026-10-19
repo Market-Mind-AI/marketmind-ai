@@ -47,6 +47,8 @@ MOS = 30% Trend + 25% Growth + 20% Geographic Potential + 15% Seasonality + 10% 
 ```
 
 > **Nota:** la arquitectura actual implementa el MOS de forma configurable y propone una reconciliación a un índice validado de 3 factores. Ver [architecture-plan.md](architecture-plan.md) §7.
+>
+> **Nota (19/10/2026):** el MOS final no quedó en 3 factores: se calcula con **Rank Reciprocal + TOPSIS** sobre las dimensiones del Cap. 5. Ver la nota al inicio de [architecture-plan.md](architecture-plan.md).
 
 ## 5. Validación científica
 

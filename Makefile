@@ -1,6 +1,7 @@
 # MarketMind AI — frontend-only convenience targets.
-# The backend lives in the separate marketmind-core service (host port 8004);
-# this repo is just the Astro frontend that talks to it over HTTP.
+# The backend is the separate marketmind-orchestrator (host port 8081 in dev),
+# which calls marketmind-scoring (8004); this repo is just the Astro frontend
+# that talks to it over HTTP.
 # Run `make help` for the list.
 
 .DEFAULT_GOAL := help

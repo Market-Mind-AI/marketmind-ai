@@ -14,6 +14,21 @@
 >
 > Dívida conhecida: o BANCO do scoring ainda se chama `marketmind_core`, em local e em Azure. Ver a nota
 > em `marketmind-setup-ecossistema.md`.
+>
+> O corpo abaixo ainda apresenta como plano outros pontos já superados (nota de 19/10/2026):
+>
+> - **Google Trends / DataForSEO Trends** como sinal de demanda → volume absoluto de buscas do
+>   **DataForSEO Google Ads** (15/07/2026); o maior mercado de referência vira o teto da régua de Demand Volume.
+> - **MOS como soma ponderada de 5 fatores** (winsorize → min-max → pesos fixos) → **Rank Reciprocal + TOPSIS
+>   com âncoras fixas** (Cap. 5). Os pesos vêm de uma ordem explícita de prioridade, nunca de números escolhidos à mão.
+> - **Terraform / GKE / Cloud Run / docker-compose como demo** → **Azure AKS** da BeProfit com GitOps (**ArgoCD**);
+>   este repo publica a imagem em `ghcr.io/market-mind-ai/marketmind-ai` e faz o bump da tag em
+>   `equifina/beprofit-infra-manifests` (`.github/workflows/build-and-push.yml`). Não há `deploy/` nem compose aqui.
+> - **WeasyPrint / PDF e a API `/analyses`** → relatório web em `/report/{id}` com link de partilha `/r/{slug}`;
+>   a API é `/analyze` (`POST /analyze`, `GET /analyze/{id}`, SSE em `GET /analyze/{id}/stream`). Não há PDF.
+> - **Validação com eBay / Keepa** (Spearman contra BSR) → não foi feita.
+> - **ADR-001 (corpus RAG em pgvector)** → removido (migration 027); o recall semântico que existe é Voyage
+>   sobre os aliases do catálogo, só para recuperar candidatos — a decisão continua sendo alias → `pg_trgm` → LLM.
 
 
 ## Context
