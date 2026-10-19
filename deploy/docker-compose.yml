@@ -1,0 +1,269 @@
+# MarketMind — the whole system on one machine.
+#
+# One Postgres with one database per service, the four collectors, the scoring
+# service, the orchestrator (the LangGraph agent the browser talks to) and the
+# static frontend. The optional gateway to a host Ollama runs under the
+# `local-llm` profile.
+#
+# Every sibling repository is built from its own Dockerfile, unchanged; this
+# file only wires them together. Services reach each other by service name on
+# the compose network; the host reaches them on the published ports, all of
+# which can be overridden from deploy/.env (see .env.example).
+#
+# Run from the repository root:  make up && make bootstrap
+
+name: marketmind
+
+# Shared pieces, spliced into the services below.
+x-db-env: &db-env
+  DATABASE_HOST: postgres
+  DATABASE_PORT: "5432"
+  DATABASE_USER: ${POSTGRES_USER:-marketmind}
+  DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+  DATABASE_SSL_MODE: disable
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+x-langfuse-env: &langfuse-env
+  LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+  LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+  LANGFUSE_HOST: ${LANGFUSE_HOST:-https://cloud.langfuse.com}
+  LANGFUSE_TRACING_ENVIRONMENT: ${LANGFUSE_TRACING_ENVIRONMENT:-local}
+
+# The Python images have no curl; urllib is always there. Each service answers
+# /healthz as soon as its process is up (the collectors and the scoring run
+# `alembic upgrade head` first, hence the generous start_period).
+x-api-healthcheck: &api-healthcheck
+  test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=3)"]
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 60s
+
+services:
+  # ------------------------------------------------------------------ data --
+  postgres:
+    # pgvector's build of Postgres 16: the scoring service's migrations create
+    # the `vector` extension (catalog semantic search, HNSW index) and plain
+    # postgres:16 does not ship it. The other services only need Postgres.
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-marketmind}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: marketmind_core
+    ports:
+      - "${POSTGRES_PORT:-5440}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Creates the other five databases on first start (empty data dir only).
+      - ./postgres/init.sh:/docker-entrypoint-initdb.d/10-create-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-marketmind} -d marketmind_core"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ------------------------------------------------------------ collectors --
+  pytrends:
+    build: ../../marketmind-pytrends
+    environment:
+      <<: *db-env
+      APP_NAME: marketmind-pytrends
+      DATABASE_NAME: marketmind_pytrends
+      DEFAULT_HL: ${DEFAULT_HL:-en-US}
+      DATAFORSEO_LOGIN: ${DATAFORSEO_LOGIN:-}
+      DATAFORSEO_PASSWORD: ${DATAFORSEO_PASSWORD:-}
+      DATAFORSEO_USE_SANDBOX: ${DATAFORSEO_USE_SANDBOX:-true}
+    ports:
+      - "${PYTRENDS_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: *api-healthcheck
+    restart: unless-stopped
+
+  oecd:
+    build: ../../marketmind-oecd
+    environment:
+      <<: *db-env
+      APP_NAME: marketmind-oecd
+      DATABASE_NAME: marketmind_oecd
+    ports:
+      - "${OECD_PORT:-8001}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: *api-healthcheck
+    restart: unless-stopped
+
+  undata:
+    build: ../../marketmind-united-nations-data
+    environment:
+      <<: *db-env
+      APP_NAME: marketmind-united-nations-data
+      DATABASE_NAME: marketmind_undata
+    ports:
+      - "${UNDATA_PORT:-8002}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: *api-healthcheck
+    restart: unless-stopped
+
+  worldbank:
+    build: ../../marketmind-worldbank
+    environment:
+      <<: *db-env
+      APP_NAME: marketmind-worldbank
+      DATABASE_NAME: marketmind_worldbank
+    ports:
+      - "${WORLDBANK_PORT:-8003}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck: *api-healthcheck
+    restart: unless-stopped
+
+  # --------------------------------------------------------------- scoring --
+  scoring:
+    build: ../../marketmind-scoring
+    environment:
+      <<: [*db-env, *langfuse-env]
+      APP_NAME: marketmind-scoring
+      APP_ENV: ${APP_ENV:-local}
+      DATABASE_NAME: marketmind_core
+      # The browser calls the scoring only when the web is pointed at it
+      # directly (WEB_API_BASE); allowed anyway so that setup works too.
+      CORS_ALLOW_ORIGINS: "http://localhost:${WEB_PORT:-8080},http://127.0.0.1:${WEB_PORT:-8080}"
+      # The four collectors and the orchestrator, by compose service name.
+      PYTRENDS_API_BASE_URL: http://pytrends:8000
+      OECD_API_BASE_URL: http://oecd:8000
+      UNDATA_API_BASE_URL: http://undata:8000
+      WORLDBANK_API_BASE_URL: http://worldbank:8000
+      ORCHESTRATOR_API_BASE_URL: http://orchestrator:8000
+      OLLAMA_LLM_API_BASE_URL: http://ollma-llm:8005
+      COLLECTION_POLL_INTERVAL_SECONDS: ${COLLECTION_POLL_INTERVAL_SECONDS:-2.0}
+      COLLECTION_POLL_TIMEOUT_SECONDS: ${COLLECTION_POLL_TIMEOUT_SECONDS:-120.0}
+      COLLECTION_DISPATCH_TIMEOUT_SECONDS: ${COLLECTION_DISPATCH_TIMEOUT_SECONDS:-1800.0}
+      # Shared secret the orchestrator presents on /internal/* calls.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in deploy/.env}
+      # Model providers.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in deploy/.env}
+      ANTHROPIC_WORKSPACE_ID: ${ANTHROPIC_WORKSPACE_ID:-}
+      LLM_PROMPT_CACHE_TTL: ${LLM_PROMPT_CACHE_TTL:-1h}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      OPENAI_EMBEDDING_DIMENSIONS: ${OPENAI_EMBEDDING_DIMENSIONS:-1536}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      VOYAGE_EMBEDDING_MODEL: ${VOYAGE_EMBEDDING_MODEL:-voyage-4}
+      VOYAGE_EMBEDDING_DIMENSIONS: ${VOYAGE_EMBEDDING_DIMENSIONS:-1024}
+      CATALOG_TRIGRAM_SIMILARITY_THRESHOLD: ${CATALOG_TRIGRAM_SIMILARITY_THRESHOLD:-0.4}
+      CATALOG_SEMANTIC_ABSTENTION_MARGIN: ${CATALOG_SEMANTIC_ABSTENTION_MARGIN:-0.035}
+      # Which model answers at each call site (provider: claude | gpt | ollama).
+      VISION_LLM_PROVIDER: ${VISION_LLM_PROVIDER:-claude}
+      VISION_LLM_MODEL: ${VISION_LLM_MODEL:-claude-opus-5}
+      ENRICHMENT_LLM_PROVIDER: ${ENRICHMENT_LLM_PROVIDER:-claude}
+      ENRICHMENT_LLM_MODEL: ${ENRICHMENT_LLM_MODEL:-claude-opus-5}
+      REFERENCE_MARKET_LLM_PROVIDER: ${REFERENCE_MARKET_LLM_PROVIDER:-claude}
+      REFERENCE_MARKET_LLM_MODEL: ${REFERENCE_MARKET_LLM_MODEL:-claude-opus-5}
+      EXPLANATION_LLM_PROVIDER: ${EXPLANATION_LLM_PROVIDER:-claude}
+      EXPLANATION_LLM_MODEL: ${EXPLANATION_LLM_MODEL:-claude-opus-5}
+      CATALOG_MATCH_LLM_PROVIDER: ${CATALOG_MATCH_LLM_PROVIDER:-claude}
+      CATALOG_MATCH_LLM_MODEL: ${CATALOG_MATCH_LLM_MODEL:-claude-opus-5}
+    ports:
+      - "${SCORING_PORT:-8004}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pytrends:
+        condition: service_started
+      oecd:
+        condition: service_started
+      undata:
+        condition: service_started
+      worldbank:
+        condition: service_started
+    healthcheck: *api-healthcheck
+    restart: unless-stopped
+
+  # ---------------------------------------------------------- orchestrator --
+  orchestrator:
+    build: ../../marketmind-orchestrator
+    environment:
+      <<: *langfuse-env
+      ROOT_PATH: ""
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      SCORING_API_URL: http://scoring:8000
+      SCORING_INTERNAL_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN in deploy/.env}
+      # Its own database; LangGraph creates the checkpointer tables itself.
+      CHECKPOINTER: postgres
+      CHECKPOINTER_DB_HOST: postgres
+      CHECKPOINTER_DB_PORT: "5432"
+      CHECKPOINTER_DB_NAME: marketmind_orchestrator
+      CHECKPOINTER_DB_USER: ${POSTGRES_USER:-marketmind}
+      CHECKPOINTER_DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      # Optional hallucination judge (a different model from the writer).
+      JUDGE_API_KEY: ${JUDGE_API_KEY:-}
+      JUDGE_MODEL: ${JUDGE_MODEL:-gpt-5.1}
+      JUDGE_SAMPLE_RATE: ${JUDGE_SAMPLE_RATE:-0.2}
+    ports:
+      - "${ORCHESTRATOR_PORT:-8081}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      scoring:
+        condition: service_started
+    healthcheck: *api-healthcheck
+    restart: unless-stopped
+
+  # ------------------------------------------------------------------- web --
+  web:
+    build:
+      # The Dockerfile lives at the repository root and copies web/ from there.
+      context: ..
+      dockerfile: Dockerfile
+      args:
+        # Inlined into the JS bundle at build time. The default "/api" is a
+        # path on the web's own origin that nginx (deploy/nginx/default.conf)
+        # proxies to the orchestrator, so the browser never makes a cross-origin
+        # call — the orchestrator has no CORS middleware. Set it to
+        # http://localhost:<port> of a service that does allow the web origin
+        # (the scoring does, via CORS_ALLOW_ORIGINS above) to bypass the proxy.
+        PUBLIC_API_BASE: ${WEB_API_BASE:-/api}
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      orchestrator:
+        condition: service_started
+    restart: unless-stopped
+
+  # ------------------------------------------------------- optional: ollama --
+  # Gateway the scoring uses when a *_LLM_PROVIDER is "ollama". Ollama itself
+  # runs on the host (http://localhost:11434), outside compose.
+  #   docker compose ... --profile local-llm up -d
+  ollma-llm:
+    build: ../../marketmind-ollma-llm
+    profiles: ["local-llm"]
+    environment:
+      APP_NAME: marketmind-ollma-llm
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen3:14b}
+      OLLAMA_TIMEOUT: ${OLLAMA_TIMEOUT:-300}
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-32768}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${OLLMA_PORT:-8005}:8005"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8005/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
