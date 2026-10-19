@@ -42,7 +42,29 @@ env:
   VALUES_FILE: env/marketmind-dev/web-values.yaml
 
 jobs:
+  test:
+    # The frontend has no unit tests yet; a failing type-check or build is
+    # what would break the image, so that is what runs before building it.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build
+        run: npm run build
+
   build-and-push:
+    needs: test
     # Native arm64, nothing emulated. Every node in the BeProfit AKS clusters is
     # Ampere arm64 (Standard_D4pls_v5 / D2ps_v5), so an amd64 image never
     # schedules — it fails as an unsatisfiable node constraint at rollout, long
