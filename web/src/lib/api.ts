@@ -15,6 +15,8 @@
 //      only as a fallback (and to fetch the final payload).
 // The MOS is computed per country by the backend; the browser never scores.
 
+import type { Lang } from "./i18n";
+
 export const API_BASE: string =
   (import.meta.env.PUBLIC_API_BASE as string | undefined)?.replace(/\/$/, "") ??
   "http://localhost:8081";
@@ -105,6 +107,9 @@ interface AnalyzeRequestBody {
   price_currency?: string | null;
   user_prompt?: string | null;
   countries: string[];
+  /** The UI language (see lib/i18n). The narrative is written in it; omitted
+   *  means the scoring service's configured default. */
+  language?: Lang;
 }
 
 interface AnalyzeAcceptedResponse {

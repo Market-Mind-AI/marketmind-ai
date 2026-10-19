@@ -6,8 +6,9 @@
 //
 // NOTE: the report's backend-generated *content* — above all the MOS narrative
 // (`explanation`) and each country's `mos_interpretation` — is rendered as-is.
-// The Core produces the narrative in its own configured language (default PT),
-// independent of this chrome language.
+// The active language is sent with POST /analyze (`language`, see lib/api.ts),
+// so the narrative is written in it; analyses from before that carry the
+// Core's configured default (PT).
 
 export type Lang = "en" | "es";
 
