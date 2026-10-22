@@ -89,6 +89,8 @@ const { showActions = true, fromSlug = false } = Astro.props;
     <div class="sec" id="r-narrative-sec" style="display: none;">
       <div class="sectitle" data-i18n="rep.narrative">Analysis</div>
       <div class="narrative" id="r-narrative"></div>
+      <!-- EU AI Act art. 50: say the text was written by a model, next to it. -->
+      <p class="ai-notice" data-i18n="rep.aiNotice">Written by an AI language model from the figures above. The scores are calculated, not written by the model.</p>
     </div>
 
     <!-- action bar -->
@@ -214,6 +216,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
   /* Distinguishable from real content at a glance: the narrative arrives after
      the scores, so this placeholder must not read as the analysis itself. */
   .narrative p.narrative-pending { opacity: 0.55; font-style: italic; }
+  .ai-notice { margin-top: 12px; font-size: 13px; color: var(--ink-soft); opacity: 0.75; }
 
   /* action bar */
   .actions {
