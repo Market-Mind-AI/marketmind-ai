@@ -441,12 +441,16 @@ const { showActions = true, fromSlug = false } = Astro.props;
    * report with a silently missing section and no reason given.
    */
   function appendInline(parent: HTMLElement, text: string): void {
-    text.split(/(\*\*[^*]+\*\*)/g).forEach((part) => {
+    text.split(/(\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g).forEach((part) => {
       if (!part) return;
       if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
         const strong = document.createElement("strong");
         strong.textContent = part.slice(2, -2);
         parent.appendChild(strong);
+      } else if (part.startsWith("*") && part.endsWith("*") && part.length > 2) {
+        const em = document.createElement("em");
+        em.textContent = part.slice(1, -1);
+        parent.appendChild(em);
       } else {
         parent.appendChild(document.createTextNode(part));
       }
@@ -482,7 +486,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
 
     if (text && text.trim()) {
       sec.style.display = "block";
-      // The model writes light Markdown (## headings, - lists, **bold**).
+      // The model writes light Markdown (## headings, - lists, **bold**, *italic*).
       // Rendered here as DOM nodes with textContent only: the text never
       // becomes HTML, so nothing it contains can run in the page.
       text
