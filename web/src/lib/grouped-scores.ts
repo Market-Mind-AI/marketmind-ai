@@ -18,6 +18,7 @@ const DIMENSION_BY_SIGNAL: Record<string, string> = {
   search_intent_score: "demand_quality",
   internet_penetration_score: "digital_readiness",
   mobile_connectivity_score: "digital_readiness",
+  broadband_adoption_score: "digital_readiness",
   gdp_per_capita_score: "economic_readiness",
   gdp_growth_score: "economic_readiness",
   worldbank_inflation_score: "economic_readiness",

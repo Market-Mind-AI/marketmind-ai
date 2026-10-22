@@ -216,6 +216,10 @@ const { showActions = true, fromSlug = false } = Astro.props;
   /* Distinguishable from real content at a glance: the narrative arrives after
      the scores, so this placeholder must not read as the analysis itself. */
   .narrative p.narrative-pending { opacity: 0.55; font-style: italic; }
+  .narrative h4 { font-size: 17px; font-weight: 600; color: var(--ink); margin-top: 6px; }
+  .narrative ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+  .narrative li { font-size: 15.5px; line-height: 1.7; color: var(--ink-soft); }
+  .narrative strong { color: var(--ink); font-weight: 600; }
   .ai-notice { margin-top: 12px; font-size: 13px; color: var(--ink-soft); opacity: 0.75; }
 
   /* action bar */
@@ -436,6 +440,41 @@ const { showActions = true, fromSlug = false } = Astro.props;
    * absent-for-good. Hiding the section on null would have shown a complete
    * report with a silently missing section and no reason given.
    */
+  function appendInline(parent: HTMLElement, text: string): void {
+    text.split(/(\*\*[^*]+\*\*)/g).forEach((part) => {
+      if (!part) return;
+      if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+        const strong = document.createElement("strong");
+        strong.textContent = part.slice(2, -2);
+        parent.appendChild(strong);
+      } else {
+        parent.appendChild(document.createTextNode(part));
+      }
+    });
+  }
+
+  function markdownBlock(block: string): HTMLElement {
+    const heading = block.match(/^#{1,4}\s+(.*)$/);
+    if (heading && !block.includes("\n")) {
+      const h = document.createElement("h4");
+      appendInline(h, heading[1]);
+      return h;
+    }
+    const lines = block.split("\n");
+    if (lines.every((l) => /^\s*[-*]\s+/.test(l))) {
+      const ul = document.createElement("ul");
+      lines.forEach((l) => {
+        const li = document.createElement("li");
+        appendInline(li, l.replace(/^\s*[-*]\s+/, ""));
+        ul.appendChild(li);
+      });
+      return ul;
+    }
+    const p = document.createElement("p");
+    appendInline(p, block.replace(/^#{1,4}\s+/, ""));
+    return p;
+  }
+
   function renderNarrative(text: string | null, pending = false): void {
     const sec = document.getElementById("r-narrative-sec")!;
     const body = document.getElementById("r-narrative")!;
@@ -443,15 +482,14 @@ const { showActions = true, fromSlug = false } = Astro.props;
 
     if (text && text.trim()) {
       sec.style.display = "block";
+      // The model writes light Markdown (## headings, - lists, **bold**).
+      // Rendered here as DOM nodes with textContent only: the text never
+      // becomes HTML, so nothing it contains can run in the page.
       text
         .split(/\n\s*\n/)
         .map((p) => p.trim())
         .filter(Boolean)
-        .forEach((p) => {
-          const node = document.createElement("p");
-          node.textContent = p;
-          body.appendChild(node);
-        });
+        .forEach((block) => body.appendChild(markdownBlock(block)));
       return;
     }
 
