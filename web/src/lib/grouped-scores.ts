@@ -8,6 +8,7 @@
 // becomes visible (on expand / on modal open) so the animation actually plays.
 
 import type { CountryEvidence, DimensionEvidence, SignalEvidence } from "./api";
+import { t } from "./i18n";
 
 // Fallback dimension for a signal, for evidence packets stored before the Core
 // tagged signals with their dimension. Mirrors DIMENSION_BY_INDICATOR.
@@ -141,7 +142,10 @@ export function renderGroupedScores(container: HTMLElement, country: CountryEvid
   if (ctx.length) {
     const group = document.createElement("div");
     group.className = "gs-group gs-context";
-    group.innerHTML = `<div class="gs-ctxtitle">Contexto — não pontuado no MOS</div>`;
+    const title = document.createElement("div");
+    title.className = "gs-ctxtitle";
+    title.textContent = t("rep.contextOnly");
+    group.appendChild(title);
     const children = document.createElement("div");
     children.className = "gs-children";
     for (const s of ctx) {
