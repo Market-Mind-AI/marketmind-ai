@@ -7,45 +7,8 @@
 // Returns an animate() that grows every bar from 0 — call it when the content
 // becomes visible (on expand / on modal open) so the animation actually plays.
 
-import type { CountryEvidence, DimensionEvidence, SignalEvidence } from "./api";
+import { formatNumber, type CountryEvidence, type ContextSignal, type DimensionEvidence, type SignalEvidence } from "./api";
 import { t } from "./i18n";
-
-// Fallback dimension for a signal, for evidence packets stored before the Core
-// tagged signals with their dimension. Mirrors DIMENSION_BY_INDICATOR.
-const DIMENSION_BY_SIGNAL: Record<string, string> = {
-  trend_score: "demand_volume",
-  growth_score: "demand_quality",
-  demand_stability_score: "demand_quality",
-  search_intent_score: "demand_quality",
-  internet_penetration_score: "digital_readiness",
-  mobile_connectivity_score: "digital_readiness",
-  broadband_adoption_score: "digital_readiness",
-  gdp_per_capita_score: "economic_readiness",
-  gdp_growth_score: "economic_readiness",
-  worldbank_inflation_score: "economic_readiness",
-  real_estate_growth_score: "economic_readiness",
-  population_scale_score: "market_size",
-  urbanization_score: "market_size",
-  population_growth_score: "demographic_sustainability",
-  net_migration_rate_score: "demographic_sustainability",
-  median_age_fit_score: "demographic_sustainability",
-  consumer_spending_score: "macro_demand_structure",
-  investment_score: "macro_demand_structure",
-  net_exports_score: "macro_demand_structure",
-  trade_openness_score: "macro_demand_structure",
-  regional_demand_score: "context",
-  government_expenditure_score: "context",
-};
-
-function dimOf(s: SignalEvidence): string {
-  return s.dimension || DIMENSION_BY_SIGNAL[s.code] || "context";
-}
-
-/** The deterministic dimension a signal rolls up into ("context" = not scored).
- *  Exported so the comparison table groups signals the same way. */
-export function signalDimension(s: SignalEvidence): string {
-  return dimOf(s);
-}
 
 let escEl: HTMLElement | null = null;
 function esc(s: string): string {
@@ -60,6 +23,7 @@ const reduceMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)")
 function bar(o: {
   label: string;
   score: number;
+  lang: string;
   kind: "dim" | "sig";
   meta?: string;
   explanation?: string;
@@ -70,7 +34,7 @@ function bar(o: {
   const w = Math.max(0, Math.min(100, o.score));
   node.innerHTML =
     `<div class="gs-barhead"><span class="gs-lbl">${esc(o.label)}</span>` +
-    `<span class="gs-val">${Math.round(o.score)}<small>/100</small></span></div>` +
+    `<span class="gs-val">${formatNumber(o.score, o.lang)}<small>/100</small></span></div>` +
     `<div class="gs-track"><div class="gs-fill"></div></div>` +
     (o.meta ? `<div class="gs-meta">${esc(o.meta)}</div>` : "") +
     (o.explanation ? `<div class="gs-expl">${esc(o.explanation)}</div>` : "") +
@@ -91,11 +55,22 @@ function bar(o: {
   return { node, animate };
 }
 
+/** One context indicator: its raw value and note, no bar (it has no score). */
+function contextRow(c: ContextSignal, lang: string): HTMLElement {
+  const node = document.createElement("div");
+  node.className = "gs-bar sig";
+  node.innerHTML =
+    `<div class="gs-barhead"><span class="gs-lbl">${esc(c.label)}</span>` +
+    `<span class="gs-val">${formatNumber(c.value, lang)}</span></div>` +
+    (c.context ? `<div class="gs-ctx">${esc(c.context)}</div>` : "");
+  return node;
+}
+
 /**
  * Build the grouped bars for a country into `container`. Dimensions come
  * pre-sorted by weight (highest first) from the Core. Returns animate().
  */
-export function renderGroupedScores(container: HTMLElement, country: CountryEvidence): () => void {
+export function renderGroupedScores(container: HTMLElement, country: CountryEvidence, lang: string): () => void {
   container.innerHTML = "";
   const animations: (() => void)[] = [];
   const dims: DimensionEvidence[] = country.dimensions ?? [];
@@ -108,14 +83,18 @@ export function renderGroupedScores(container: HTMLElement, country: CountryEvid
     const head = bar({
       label: dim.label,
       score: dim.score,
+      lang,
       kind: "dim",
-      meta: dim.weight != null ? `${dim.band} · peso ${Math.round(dim.weight * 100)}%` : dim.band,
+      meta:
+        dim.weight != null
+          ? `${dim.band_label} · ${t("rep.weight")} ${dim.weight.toLocaleString(lang, { style: "percent", maximumFractionDigits: 20 })}`
+          : dim.band_label,
       explanation: dim.explanation,
     });
     group.appendChild(head.node);
     animations.push(head.animate);
 
-    const kids = signals.filter((s) => dimOf(s) === dim.dimension);
+    const kids = signals.filter((s) => s.dimension === dim.dimension);
     if (kids.length) {
       const children = document.createElement("div");
       children.className = "gs-children";
@@ -123,8 +102,9 @@ export function renderGroupedScores(container: HTMLElement, country: CountryEvid
         const b = bar({
           label: s.label,
           score: s.score,
+          lang,
           kind: "sig",
-          meta: s.band,
+          meta: s.band_label,
           explanation: s.explanation,
           context: s.context,
         });
@@ -136,9 +116,9 @@ export function renderGroupedScores(container: HTMLElement, country: CountryEvid
     container.appendChild(group);
   }
 
-  // Context-only signals (regional demand, government expenditure) — computed
-  // and shown, but not scored into any dimension.
-  const ctx = signals.filter((s) => dimOf(s) === "context");
+  // Context indicators (category volume, regional demand, government
+  // expenditure) — a number with no score, shown but not part of the MOS.
+  const ctx: ContextSignal[] = country.context_signals ?? [];
   if (ctx.length) {
     const group = document.createElement("div");
     group.className = "gs-group gs-context";
@@ -148,18 +128,7 @@ export function renderGroupedScores(container: HTMLElement, country: CountryEvid
     group.appendChild(title);
     const children = document.createElement("div");
     children.className = "gs-children";
-    for (const s of ctx) {
-      const b = bar({
-        label: s.label,
-        score: s.score,
-        kind: "sig",
-        meta: s.band,
-        explanation: s.explanation,
-        context: s.context,
-      });
-      children.appendChild(b.node);
-      animations.push(b.animate);
-    }
+    for (const c of ctx) children.appendChild(contextRow(c, lang));
     group.appendChild(children);
     container.appendChild(group);
   }

@@ -158,8 +158,13 @@ export interface MosResult {
   availability_status: string;
   excluded_reason: string | null;
   computed_at: string;
-  requested?: boolean; // false = off-request reference "champion" (best market for the product)
-  is_champion?: boolean; // the highest-MOS market (crowned 👑)
+  requested: boolean; // false = off-request reference "champion" (best market for the product)
+  is_champion: boolean; // the crowned market (👑), decided by the backend
+  // What to print for the MOS and its band — the backend rounds and bands it
+  // (app/services/presentation.py); the browser only displays them.
+  mos_display: number | null;
+  mos_band_key: string | null; // stable key, e.g. "good_opportunity" — picks the colour
+  mos_band_label: string | null; // already in the analysis language
 }
 
 /* ---------- rich evidence packet (breakdown) — mirrors the Core packet ---------- */
@@ -170,6 +175,8 @@ export interface DimensionEvidence {
   label: string;
   score: number;
   band: string;
+  band_key: string;
+  band_label: string; // in the analysis language
   weight: number | null; // Rank-Reciprocal weight
   explanation: string;
 }
@@ -180,22 +187,36 @@ export interface SignalEvidence {
   label: string;
   score: number;
   band: string;
+  band_key: string;
+  band_label: string; // in the analysis language
   explanation: string;
   context?: string | null; // demand-volume carries absolute searches / population / penetration
-  dimension?: string | null; // deterministic dimension this signal rolls up into ("context" = not scored)
+  dimension: string; // the dimension this signal rolls up into
+}
+
+/** A context indicator: a raw number with no score, not part of the MOS. */
+export interface ContextSignal {
+  code: string;
+  label: string;
+  value: number;
+  context?: string | null;
 }
 
 export interface CountryEvidence {
   country: string; // ISO3
   mos: number | null;
   mos_band: string | null;
+  mos_display: number | null;
+  mos_band_key: string | null;
+  mos_band_label: string | null;
   mos_explanation: string | null;
   dimensions: DimensionEvidence[];
   signals: SignalEvidence[];
+  context_signals: ContextSignal[];
   demand_confidence?: string | null; // "low" = demand likely undercounted (missing native term)
   demand_confidence_note?: string | null;
-  requested?: boolean; // false = off-request reference "champion"
-  is_champion?: boolean; // the highest-MOS market (crowned 👑)
+  requested: boolean; // false = off-request reference "champion"
+  is_champion: boolean; // the crowned market (👑)
 }
 
 interface DemandRuler {
@@ -207,6 +228,11 @@ interface DemandRuler {
 
 interface EvidencePacket {
   period_key: string;
+  language: string;
+  requested_countries: string[];
+  champion_country: string | null;
+  display_order: string[];
+  headline_country: string | null;
   demand_ruler: DemandRuler | null;
   glossary: Record<string, { label: string; meaning: string }>;
   weights: Record<string, number>;
@@ -216,6 +242,11 @@ interface EvidencePacket {
 export interface AnalysisStatusResponse {
   request_id: string;
   status: string; // "pending" | "running" | "done" | "failed"
+  // The language everything the backend wrote is in (labels, bands, narrative).
+  language: string | null;
+  // ISO3 codes in the order to show them, and the market the headline is about.
+  display_order: string[];
+  headline_country: string | null;
   // What the run is doing right now ("collecting ESP", "writing the
   // explanation"). The backend has always sent it; nothing read it, so the
   // screen showed a timed animation that stopped meaning anything after a few
@@ -257,6 +288,12 @@ export function num(v: string | number | null | undefined): number | null {
   if (v === null || v === undefined) return null;
   const n = typeof v === "number" ? v : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+/** A number the backend sent, printed as sent: only the decimal separator
+ *  follows `lang`. Never rounds — the backend already did. */
+export function formatNumber(v: number, lang: string): string {
+  return v.toLocaleString(lang, { maximumFractionDigits: 20 });
 }
 
 /** Read a File as a bare base64 string (no data: prefix) + its media type,
@@ -359,41 +396,32 @@ export function flag(code: string): string {
   );
 }
 
-/* ---------- MOS tier (color + key) from the numeric score ---------- */
-// The Core returns a textual `mos_interpretation` band; for the gauge/chip
-// color we derive a coarse tier from the number. Thresholds are presentational
-// only (they do not affect any score).
+/* ---------- band colour, from the band key the backend sends ---------- */
+// The backend decides the band (score and MOS alike); this only paints it.
 
-interface TierMeta {
-  key: "strong" | "moderate" | "weak";
+interface BandColour {
   color: string;
   border: string;
   bg: string;
 }
 
-export function mosTier(mos: number | null): TierMeta {
-  if (mos !== null && mos >= 60) {
-    return {
-      key: "strong",
-      color: "#5fd0ad",
-      border: "rgba(95,208,173,.35)",
-      bg: "rgba(95,208,173,.06)",
-    };
-  }
-  if (mos !== null && mos >= 40) {
-    return {
-      key: "moderate",
-      color: "#ecbc4e",
-      border: "rgba(236,188,78,.35)",
-      bg: "rgba(236,188,78,.06)",
-    };
-  }
-  return {
-    key: "weak",
-    color: "#e96a4c",
-    border: "rgba(233,106,76,.35)",
-    bg: "rgba(233,106,76,.08)",
-  };
+const BAND_RGB: Record<string, string> = {
+  very_low: "233,106,76",
+  low: "238,145,80",
+  moderate: "236,188,78",
+  high: "95,208,173",
+  very_high: "79,195,224",
+  very_low_opportunity: "233,106,76",
+  low_opportunity: "238,145,80",
+  moderate_opportunity: "236,188,78",
+  good_opportunity: "181,200,95",
+  high_opportunity: "95,208,173",
+  excellent_opportunity: "79,195,224",
+};
+
+export function bandColour(key: string | null | undefined): BandColour {
+  const rgb = (key && BAND_RGB[key]) || "160,160,170";
+  return { color: `rgb(${rgb})`, border: `rgba(${rgb},.35)`, bg: `rgba(${rgb},.06)` };
 }
 
 /** The share slug is the request UUID hex (dashes stripped). */

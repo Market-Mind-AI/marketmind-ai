@@ -4,11 +4,11 @@
 // review screen, the analyzing steps, and the report's section titles / chips /
 // buttons.
 //
-// NOTE: the report's backend-generated *content* — above all the MOS narrative
-// (`explanation`) and each country's `mos_interpretation` — is rendered as-is.
-// The active language is sent with POST /analyze (`language`, see lib/api.ts),
-// so the narrative is written in it; analyses from before that carry the
-// Core's configured default (PT).
+// NOTE: everything the backend writes — the narrative (`explanation`), metric
+// and dimension labels, band labels and explanations — is rendered as received,
+// in the analysis language. The active language is sent with POST /analyze
+// (`language`, see lib/api.ts), so the backend writes in it; analyses from
+// before that carry the Core's configured default (PT).
 
 export type Lang = "en" | "es";
 
@@ -86,7 +86,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     "rep.topmarket": "Top market",
     "rep.themarket": "Market",
     "rep.analysis": "Market analysis",
-    "rep.champion": "Top market for this product (not requested)",
+    "rep.champion": "Top market for this product",
+    "rep.notRequested": "not requested",
     "rep.ranking": "Market Opportunity ranking",
     "rep.mos": "MOS / 100",
     "rep.narrative": "Analysis",
@@ -107,10 +108,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     "rep.comparison": "Comparison — MOS & all scores",
     "rep.metric": "Metric",
     "rep.contextOnly": "Context — not scored in the MOS",
+    "rep.weight": "weight",
     "rep.youasked": "You asked",
-    "tier.strong": "Strong opportunity",
-    "tier.moderate": "Moderate opportunity",
-    "tier.weak": "Watch · weak",
     // --- 404 ---
     "nf.title": "This page <em>drifted off</em>.",
     "nf.sub": "We couldn't find what you were looking for.",
@@ -196,7 +195,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     "rep.topmarket": "Mejor mercado",
     "rep.themarket": "Mercado",
     "rep.analysis": "Análisis del mercado",
-    "rep.champion": "Mejor mercado para este producto (no solicitado)",
+    "rep.champion": "Mejor mercado para este producto",
+    "rep.notRequested": "no solicitado",
     "rep.ranking": "Ranking de Market Opportunity",
     "rep.mos": "MOS / 100",
     "rep.narrative": "Análisis",
@@ -217,10 +217,8 @@ export const messages: Record<Lang, Record<string, string>> = {
     "rep.comparison": "Comparativa — MOS y todos los scores",
     "rep.metric": "Métrica",
     "rep.contextOnly": "Contexto — no puntúa en el MOS",
+    "rep.weight": "peso",
     "rep.youasked": "Preguntaste",
-    "tier.strong": "Oportunidad fuerte",
-    "tier.moderate": "Oportunidad moderada",
-    "tier.weak": "Vigilar · débil",
     // --- 404 ---
     "nf.title": "Esta página <em>se perdió</em>.",
     "nf.sub": "No encontramos lo que buscabas.",

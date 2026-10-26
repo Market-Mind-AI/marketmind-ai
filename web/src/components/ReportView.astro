@@ -240,18 +240,18 @@ const { showActions = true, fromSlug = false } = Astro.props;
     fetchCountries,
     isTerminalStatus,
     subscribeStatus,
-    num,
     flag,
     countryName,
-    mosTier,
+    bandColour,
+    formatNumber,
     slugForId,
     idFromSlug,
     type AnalysisStatusResponse,
     type MosResult,
     type CountryEvidence,
   } from "../lib/api";
-  import { renderGroupedScores, signalDimension } from "../lib/grouped-scores";
-  import { t } from "../lib/i18n";
+  import { renderGroupedScores } from "../lib/grouped-scores";
+  import { t, getLang } from "../lib/i18n";
 
   const POLL_MS = 2500;
   // Used only while the live stream is not delivering. The stream pushes every
@@ -266,14 +266,6 @@ const { showActions = true, fromSlug = false } = Astro.props;
     return node;
   }
 
-  // effective MOS for sorting/gauge: prefer capped `mos`, fall back to raw.
-  function mosOf(r: MosResult): number | null {
-    return num(r.mos) ?? num(r.mos_before_cap);
-  }
-  function isScored(r: MosResult): boolean {
-    return mosOf(r) !== null && !r.excluded_reason;
-  }
-
   let escDiv: HTMLElement | null = null;
   function escapeHtml(s: string): string {
     if (!escDiv) escDiv = document.createElement("div");
@@ -282,7 +274,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
   }
 
   /* ---------- comparison table: MOS + every score across all countries ---------- */
-  function buildComparison(countries: CountryEvidence[]): void {
+  function buildComparison(countries: CountryEvidence[], lang: string): void {
     const sec = document.getElementById("r-comparison-sec")!;
     const table = document.getElementById("r-comparison") as HTMLTableElement;
     if (countries.length === 0) {
@@ -293,32 +285,37 @@ const { showActions = true, fromSlug = false } = Astro.props;
     table.innerHTML = "";
 
     // canonical row order from the first country: MOS, then each dimension with
-    // its nested signals, then the context-only signals. Same set across all
+    // its nested signals, then the context indicators. Same set across all
     // countries, so column values are looked up by key per country.
     type Row = { kind: "mos" | "dim" | "sig" | "ctx"; label: string; key: string };
+    type Cell = { value: number; bandKey: string | null };
     const first = countries[0];
     const rows: Row[] = [{ kind: "mos", label: "MOS", key: "__mos__" }];
     for (const dim of first.dimensions ?? []) {
       rows.push({ kind: "dim", label: dim.label, key: dim.dimension });
-      for (const s of (first.signals ?? []).filter((x) => signalDimension(x) === dim.dimension)) {
+      for (const s of (first.signals ?? []).filter((x) => x.dimension === dim.dimension)) {
         rows.push({ kind: "sig", label: s.label, key: s.code });
       }
     }
-    for (const s of (first.signals ?? []).filter((x) => signalDimension(x) === "context")) {
-      rows.push({ kind: "ctx", label: s.label, key: s.code });
+    for (const c of first.context_signals ?? []) {
+      rows.push({ kind: "ctx", label: c.label, key: c.code });
     }
 
-    const dimMap = new Map<string, Map<string, number>>();
-    const sigMap = new Map<string, Map<string, number>>();
-    const mosMap = new Map<string, number | null>();
+    const dimMap = new Map<string, Map<string, Cell>>();
+    const sigMap = new Map<string, Map<string, Cell>>();
+    const ctxMap = new Map<string, Map<string, Cell>>();
+    const mosMap = new Map<string, Cell | null>();
     for (const c of countries) {
-      dimMap.set(c.country, new Map((c.dimensions ?? []).map((d) => [d.dimension, d.score])));
-      sigMap.set(c.country, new Map((c.signals ?? []).map((s) => [s.code, s.score])));
-      mosMap.set(c.country, num(c.mos));
+      dimMap.set(c.country, new Map((c.dimensions ?? []).map((d) => [d.dimension, { value: d.score, bandKey: d.band_key }])));
+      sigMap.set(c.country, new Map((c.signals ?? []).map((s) => [s.code, { value: s.score, bandKey: s.band_key }])));
+      // Context indicators are neither good nor bad: no band, no colour.
+      ctxMap.set(c.country, new Map((c.context_signals ?? []).map((x) => [x.code, { value: x.value, bandKey: null }])));
+      mosMap.set(c.country, c.mos_display !== null ? { value: c.mos_display, bandKey: c.mos_band_key } : null);
     }
-    const valueFor = (row: Row, country: string): number | null => {
+    const valueFor = (row: Row, country: string): Cell | null => {
       if (row.kind === "mos") return mosMap.get(country) ?? null;
       if (row.kind === "dim") return dimMap.get(country)?.get(row.key) ?? null;
+      if (row.kind === "ctx") return ctxMap.get(country)?.get(row.key) ?? null;
       return sigMap.get(country)?.get(row.key) ?? null;
     };
 
@@ -338,17 +335,17 @@ const { showActions = true, fromSlug = false } = Astro.props;
     const tbody = document.createElement("tbody");
     for (const row of rows) {
       const vals = countries.map((c) => valueFor(row, c.country));
-      const present = vals.filter((v): v is number => v !== null);
-      const best = present.length > 1 ? Math.max(...present) : null;
+      const present = vals.filter((v): v is Cell => v !== null).map((v) => v.value);
+      const best = row.kind !== "ctx" && present.length > 1 ? Math.max(...present) : null;
       let cells = `<th class="metric">${escapeHtml(row.label)}</th>`;
       for (const v of vals) {
         if (v === null) {
           cells += `<td class="na">—</td>`;
           continue;
         }
-        const color = mosTier(v).color;
-        const isBest = best !== null && Math.abs(v - best) < 0.05;
-        cells += `<td class="${isBest ? "best" : ""}"><span class="v" style="color:${color}">${Math.round(v)}</span></td>`;
+        const color = v.bandKey ? ` style="color:${bandColour(v.bandKey).color}"` : "";
+        const isBest = best !== null && v.value === best;
+        cells += `<td class="${isBest ? "best" : ""}"><span class="v"${color}>${formatNumber(v.value, lang)}</span></td>`;
       }
       const tr = document.createElement("tr");
       tr.className = `cmp-${row.kind}`;
@@ -513,40 +510,24 @@ const { showActions = true, fromSlug = false } = Astro.props;
     const state = document.getElementById("r-state")!;
     const body = document.getElementById("r-body")!;
 
-    // Off-request champion first, then the requested markets by MOS.
-    //
-    // Sorting purely by MOS buried it: a champion scoring 66 landed between the
-    // #1 requested market at 69 and the #2 at 42, reading as an unnumbered card
-    // dropped into the middle of the ranking. It is not a rank position — it is
-    // the answer to a different question ("the product's best market, which you
-    // did not ask about"), so it belongs above the ranking rather than inside
-    // it. The rank numbers already count requested markets only, so pinning it
-    // to the top leaves #1/#2/#3 contiguous.
-    const results = (a.result ?? []).slice().sort((x, y) => {
-      const cx = x.requested === false ? 0 : 1;
-      const cy = y.requested === false ? 0 : 1;
-      if (cx !== cy) return cx - cy;
-      const mx = mosOf(x), my = mosOf(y);
-      if (mx === null && my === null) return 0;
-      if (mx === null) return 1;
-      if (my === null) return -1;
-      return my - mx;
-    });
+    // The backend decides the order (off-request champion first, then the
+    // requested markets by MOS) and which market the headline is about.
+    const byCountry = new Map((a.result ?? []).map((r) => [r.country, r]));
+    const results = a.display_order
+      .map((c) => byCountry.get(c))
+      .filter((r): r is MosResult => !!r);
+    const lang = a.language ?? getLang();
 
-    // A result flagged `requested === false` is the off-request reference
+    // A result with `requested === false` is the off-request reference
     // "champion" (the product's best-MOS market), surfaced for benchmark only.
-    const isRequested = (r: MosResult) => r.requested !== false;
-    const requestedResults = results.filter(isRequested);
+    const requestedResults = results.filter((r) => r.requested);
     // Single-market framing follows the REQUESTED markets: a champion added for
     // benchmark doesn't turn a 1-country request into a ranking (no rank #s).
     const single = requestedResults.length <= 1;
 
     // header
     document.getElementById("r-title")!.textContent = a.canonical_title ?? "Product";
-    const scored = results.filter(isScored);
-    // The big scorecard highlights the best REQUESTED market (not the off-request
-    // champion), so the user's own pick stays the headline.
-    const top = scored.find(isRequested) ?? scored[0] ?? results[0];
+    const top = a.headline_country ? byCountry.get(a.headline_country) : undefined;
     const period = results[0]?.period_key ?? "";
     document.getElementById("r-when")!.textContent =
       [
@@ -557,17 +538,16 @@ const { showActions = true, fromSlug = false } = Astro.props;
         .join(" · ");
 
     // scorecard from the top market
-    const topMos = top ? mosOf(top) : null;
-    const total = topMos !== null ? Math.round(topMos) : 0;
-    const tier = mosTier(topMos);
+    const total = top?.mos_display ?? 0;
+    const band = bandColour(top?.mos_band_key);
     const chip = document.getElementById("r-chip")!;
-    chip.textContent = t("tier." + tier.key);
-    chip.style.color = tier.color;
-    chip.style.borderColor = tier.border;
-    chip.style.background = tier.bg;
+    chip.textContent = top?.mos_band_label ?? "";
+    chip.style.color = band.color;
+    chip.style.borderColor = band.border;
+    chip.style.background = band.bg;
 
     const vt = document.getElementById("r-vt")!;
-    vt.style.color = tier.color;
+    vt.style.color = band.color;
     vt.textContent = single ? t("rep.themarket") : t("rep.topmarket");
     // ranking section title: "ranking" for many, "analysis" for a single market
     document.getElementById("r-ranking-title")!.textContent = single
@@ -576,7 +556,11 @@ const { showActions = true, fromSlug = false } = Astro.props;
     document.getElementById("r-verdict")!.innerHTML = top
       ? `<span>${flag(top.country)}</span>${countryName(top.country)}`
       : "—";
-    document.getElementById("r-summary")!.textContent = top?.mos_interpretation ?? "";
+    const evByCountry = new Map<string, CountryEvidence>(
+      (a.breakdown?.countries ?? []).map((c) => [c.country, c]),
+    );
+    document.getElementById("r-summary")!.textContent =
+      (top && evByCountry.get(top.country)?.mos_explanation) ?? "";
 
     const ring = document.getElementById("r-ring") as unknown as SVGCircleElement;
     const numEl = document.getElementById("r-num")!;
@@ -584,7 +568,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
       ring.style.strokeDashoffset = String(circ - (circ * total) / 100);
-      numEl.textContent = String(total);
+      numEl.textContent = formatNumber(total, lang);
     } else {
       requestAnimationFrame(() => {
         ring.style.transition = "stroke-dashoffset 1.4s cubic-bezier(.2,.7,.2,1)";
@@ -594,32 +578,39 @@ const { showActions = true, fromSlug = false } = Astro.props;
       const step = Math.max(1, Math.round(total / 39));
       const cnt = setInterval(() => {
         n += step;
-        if (n >= total) { n = total; clearInterval(cnt); }
+        if (n >= total) {
+          clearInterval(cnt);
+          numEl.textContent = formatNumber(total, lang);
+          return;
+        }
         numEl.textContent = String(n);
       }, 22);
     }
 
     // ranking list — each card carries the country's grouped deterministic
     // scores (dimension gauge + child signal gauges), from the evidence packet.
-    const evByCountry = new Map<string, CountryEvidence>(
-      (a.breakdown?.countries ?? []).map((c) => [c.country, c]),
-    );
     const ranking = document.getElementById("r-ranking")!;
     ranking.innerHTML = "";
     let rank = 0; // rank # counts only requested markets (champion is crowned, not ranked)
     results.forEach((r) => {
-      const m = mosOf(r);
+      const m = r.mos_display;
       const excluded = !!r.excluded_reason;
-      const requested = isRequested(r);
-      const champ = !!r.is_champion;
+      const requested = r.requested;
+      const champ = r.is_champion;
       if (requested) rank += 1;
-      const scoreHtml = m !== null ? `${Math.round(m)}<small>/100</small>` : `<small>${t("rep.na")}</small>`;
+      const scoreHtml = m !== null ? `${formatNumber(m, lang)}<small>/100</small>` : `<small>${t("rep.na")}</small>`;
       const tags: string[] = [];
-      // Off-request champion: flag it clearly as a benchmark, not a picked market.
-      if (!requested) tags.push(`<span class="tag king">👑 ${t("rep.champion")}</span>`);
-      if (r.capped_by) tags.push(`<span class="tag cap">${t("rep.cappedby")} ${r.capped_by}</span>`);
+      // The crowned market; an off-request one is flagged as a benchmark, not a picked market.
+      if (champ) {
+        const asked = requested ? "" : ` (${t("rep.notRequested")})`;
+        tags.push(`<span class="tag king">👑 ${t("rep.champion")}${asked}</span>`);
+      }
+      if (r.capped_by) {
+        const capLabel = a.breakdown?.glossary?.[r.capped_by]?.label ?? r.capped_by;
+        tags.push(`<span class="tag cap">${t("rep.cappedby")} ${escapeHtml(capLabel)}</span>`);
+      }
       if (excluded) tags.push(`<span class="tag">${t("rep.excluded")}: ${r.excluded_reason}</span>`);
-      const band = r.mos_interpretation ?? r.explanation ?? "";
+      const bandLabel = r.mos_band_label ?? "";
       const ev = evByCountry.get(r.country);
       if (ev?.demand_confidence === "low") {
         tags.push(
@@ -642,7 +633,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
         `<div class="mh"><div class="fl">${markHtml}<span class="fg">${flag(r.country)}</span>${countryName(r.country)}</div>` +
           `<div class="mh-right"><div class="sc">${scoreHtml}</div>${toggleHtml}</div></div>` +
           `<div class="mtrack"><div class="mfill"></div></div>` +
-          (band ? `<div class="band">${band}</div>` : "") +
+          (bandLabel ? `<div class="band">${escapeHtml(bandLabel)}</div>` : "") +
           (tags.length ? `<div class="flags">${tags.join("")}</div>` : ""),
         "mkt" + (excluded ? " excluded" : "") + (ev ? " has-detail" : "") + (champ ? " champion" : "") +
           (!requested ? " not-requested" : ""),
@@ -659,7 +650,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
         const groups = document.createElement("div");
         groups.className = "gs-root gs-collapsed";
         card.appendChild(groups);
-        const animateGroups = renderGroupedScores(groups, ev);
+        const animateGroups = renderGroupedScores(groups, ev, lang);
         const toggle = card.querySelector<HTMLButtonElement>(".mkt-toggle")!;
         const head = card.querySelector<HTMLElement>(".mh")!;
         let expanded = false;
@@ -685,7 +676,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
     const orderedEv = results
       .map((r) => evByCountry.get(r.country))
       .filter((e): e is CountryEvidence => !!e);
-    buildComparison(orderedEv.length >= 2 ? orderedEv : []);
+    buildComparison(orderedEv.length >= 2 ? orderedEv : [], lang);
 
     // narrative — rendered separately because it arrives after the scores
     renderNarrative(a.explanation);
@@ -696,7 +687,7 @@ const { showActions = true, fromSlug = false } = Astro.props;
       const actions = document.getElementById("r-actions")!;
       actions.style.display = "flex";
       document.getElementById("r-actions-summary")!.innerHTML = top
-        ? `${flag(top.country)} <b>${countryName(top.country)}</b> · MOS <b>${total}/100</b> · ${t("rep.share")} <b>/r/${slug}</b>`
+        ? `${flag(top.country)} <b>${countryName(top.country)}</b> · MOS <b>${formatNumber(total, lang)}/100</b> · ${t("rep.share")} <b>/r/${slug}</b>`
         : `${t("rep.share")} <b>/r/${slug}</b>`;
       const shareBtn = document.getElementById("r-share") as HTMLButtonElement;
       if (shareBtn.dataset.bound !== "1") {
