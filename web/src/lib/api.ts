@@ -29,6 +29,10 @@ export const API_BASE: string =
 interface LocalizedMarket {
   primary_name: string;
   formal_name?: string | null;
+  /** The language these terms were written in, as identify-image said. Sent
+   *  back unchanged: without it the collection falls back to the country's
+   *  default language. */
+  search_language?: string | null;
   search_terms: string[];
   excluded_terms: string[];
   confidence: number;
