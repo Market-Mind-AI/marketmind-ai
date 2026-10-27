@@ -770,7 +770,10 @@ const { showActions = true, fromSlug = false } = Astro.props;
       // The scores are the answer and the text is a reading of them, so the
       // scores go up without it and the section says the text is coming.
       if (!narrative) renderNarrative(null, true);
-      return Boolean(narrative);
+      // The text is stored piece by piece while the model writes it, under the
+      // progress line "writing the explanation"; it is finished when that
+      // line is cleared. Until then each piece is drawn as it lands.
+      return Boolean(narrative) && !a.progress;
     };
 
     const finish = () => {
