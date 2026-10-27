@@ -161,7 +161,7 @@ services:
       CATALOG_SEMANTIC_ABSTENTION_MARGIN: ${CATALOG_SEMANTIC_ABSTENTION_MARGIN:-0.035}
       # Which model answers at each call site (provider: claude | gpt | ollama).
       VISION_LLM_PROVIDER: ${VISION_LLM_PROVIDER:-claude}
-      VISION_LLM_MODEL: ${VISION_LLM_MODEL:-claude-opus-5}
+      VISION_LLM_MODEL: ${VISION_LLM_MODEL:-claude-sonnet-5-5}
       ENRICHMENT_LLM_PROVIDER: ${ENRICHMENT_LLM_PROVIDER:-claude}
       ENRICHMENT_LLM_MODEL: ${ENRICHMENT_LLM_MODEL:-claude-opus-5}
       REFERENCE_MARKET_LLM_PROVIDER: ${REFERENCE_MARKET_LLM_PROVIDER:-claude}
@@ -202,10 +202,10 @@ services:
       CHECKPOINTER_DB_NAME: marketmind_orchestrator
       CHECKPOINTER_DB_USER: ${POSTGRES_USER:-marketmind}
       CHECKPOINTER_DB_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
-      # Optional hallucination judge (a different model from the writer).
-      JUDGE_API_KEY: ${JUDGE_API_KEY:-}
-      JUDGE_MODEL: ${JUDGE_MODEL:-gpt-5.1}
-      JUDGE_SAMPLE_RATE: ${JUDGE_SAMPLE_RATE:-0.2}
+      # The agent's recovery decisions (retry, wait for a source, deliver with
+      # a note...). Without a key the fixed rule decides instead.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY in deploy/.env}
+      DECISION_MODEL: ${DECISION_MODEL:-claude-sonnet-5-5}
     ports:
       - "${ORCHESTRATOR_PORT:-8081}:8000"
     depends_on:

@@ -15,7 +15,7 @@ propio `Dockerfile`; `deploy/docker-compose.yml` sólo los conecta.
 - `make`, `curl` y `python3` (sólo para el formateo en `bootstrap.sh`).
 - Credenciales: una clave de Anthropic y una cuenta de DataForSEO (login y
   *API password*). Voyage AI es recomendable (búsqueda semántica del catálogo);
-  OpenAI, Langfuse y el juez de alucinaciones son opcionales.
+  OpenAI y Langfuse son opcionales.
 - Puertos libres en el host: 8000-8004, 8080, 8081 y 5440 por defecto (8005 con
   el perfil `local-llm`). Todos se cambian en `deploy/.env`.
 
