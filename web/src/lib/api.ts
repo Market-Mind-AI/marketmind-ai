@@ -1,6 +1,7 @@
 // Typed client for the MarketMind API. In the browser this is the
 // **orchestrator** (marketmind-orchestrator, the LangGraph agent) reached at
-// PUBLIC_API_BASE — "/api" in the deployed build, where the ingress routes
+// PUBLIC_API_BASE — "/api" by default: in dev the Astro server forwards it to
+// the orchestrator (astro.config.mjs), and in the deployed build the ingress routes
 // /api → orchestrator and /scoring → marketmind-scoring. The orchestrator
 // exposes the same /analyze, /catalog and /countries routes as the scoring
 // service it calls, so pointing PUBLIC_API_BASE at the scoring directly
@@ -18,8 +19,7 @@
 import type { Lang } from "./i18n";
 
 export const API_BASE: string =
-  (import.meta.env.PUBLIC_API_BASE as string | undefined)?.replace(/\/$/, "") ??
-  "http://localhost:8081";
+  (import.meta.env.PUBLIC_API_BASE as string | undefined)?.replace(/\/$/, "") ?? "/api";
 
 /* ============================ shared shapes ============================ */
 
