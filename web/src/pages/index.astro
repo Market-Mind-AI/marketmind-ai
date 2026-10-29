@@ -281,6 +281,17 @@ import Base from "../layouts/Base.astro";
     }
   }
 
+  // Empty the description and the images once an analysis is sent; the
+  // markets stay picked for the next product.
+  function clearProduct() {
+    userPrompt = "";
+    files.length = 0;
+    (document.getElementById("desc") as HTMLTextAreaElement).value = "";
+    (document.getElementById("file-input") as HTMLInputElement).value = "";
+    document.getElementById("thumbs")!.innerHTML = "";
+    document.getElementById("imgcount")!.textContent = `0 ${t("idx.added")}`;
+  }
+
   /* ---------- upload screen ---------- */
   function bindUpload() {
     const form = document.getElementById("analyze-form") as HTMLFormElement | null;
@@ -294,6 +305,9 @@ import Base from "../layouts/Base.astro";
     const statusEl = document.getElementById("status")!;
     const submitBtn = document.getElementById("analyzeBtn") as HTMLButtonElement;
 
+    // A fresh page has no thumbnails, so it holds no images either: the
+    // module outlives the ClientRouter navigation that brought us back here.
+    files.length = 0;
     imgcount.textContent = `${files.length} ${t("idx.added")}`;
 
     function renderThumbs() {
@@ -499,6 +513,7 @@ import Base from "../layouts/Base.astro";
           revStatus.textContent = "";
           // back to the upload screen, ready for the next product
           identified = null;
+          clearProduct();
           document.getElementById("screen-review")!.style.display = "none";
           document.getElementById("screen-upload")!.style.display = "block";
           window.scrollTo({ top: 0, behavior: "smooth" });
